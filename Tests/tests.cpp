@@ -10,7 +10,11 @@
 
 //Tests
 
-#include "tests_generate_code.cpp"
+// tests for the creation of the code
+#include "tests_generate_code.hpp"
+
+// tests for the error simulation
+#include "tests_simulate_errors.hpp"
 
 
 int main(int argc, char* argv[])

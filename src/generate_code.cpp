@@ -6,7 +6,7 @@ size_type CSSCodes::get_number_qubits(){
 	return num_qubits_;
 }
 size_type CSSCodes::get_number_stabilizers(){
-	return Z_stabilizers_.size() + X_stabilizers_.size() + Y_stabilizers_.size();
+	return Z_stabilizers_.size() + graph_.size();
 }
 
 size_type CSSCodes::get_number_X_stabilizers(){
@@ -16,21 +16,63 @@ size_type CSSCodes::get_number_X_stabilizers(){
 size_type CSSCodes::get_number_Z_stabilizers(){
 	return Z_stabilizers_.size();
 }
-size_type CSSCodes::get_number_Y_stabilizers(){
-	return Y_stabilizers_.size();
+
+void CSSCodes::generate_state(Code_info & code){
+	//create qubits and a temporary lookup table
+	std::map<std::pair<size_type,size_type>, size_type> tmp_lookup;
+	size_type qubit_id = 0;
+	for(auto node : graph_){
+		size_type center_node = node.first;
+		for(size_type neighbor : node.second){
+			if(center_node < neighbor){
+				//add new qubit to lookup table
+				tmp_lookup[std::make_pair(center_node, neighbor)] = qubit_id;
+				++qubit_id;
+			}
+		}
+	}
+	code.num_qubits = tmp_lookup.size();
+
+	//generate X checks with physical qubits
+	for(auto X_check : graph_){
+		if (X_check.second.size() > 1){
+			ParityCheck tmp;
+			for(auto neighbor : X_check.second){
+				tmp.insert(tmp_lookup[std::make_pair(std::min(X_check.first,neighbor),std::max(X_check.first,neighbor))]);
+			}
+			code.X_stabilizer.push_back(tmp);
+		}
+	}
+
+
+	//generate Z-checks with physical qubits
+	for(auto Z_check : Z_stabilizers_){
+		ParityCheck tmp;
+		for(size_type node : Z_check){
+			for(auto neighbor : graph_.at(node)){
+				if (Z_check.find(neighbor) != Z_check.end()){
+					tmp.insert(tmp_lookup[std::make_pair(std::min(node,neighbor),std::max(node,neighbor))]);
+				}
+			}
+		}
+		code.Z_stabilizer.push_back(tmp);
+	}
+
+
+	std::swap(code.X_boundary, X_bound_result);
+	std::swap(code.Z_boundary, Z_bound_result);
+
+
+	//resolve dual
+	if(dual_){
+		std::swap(code.X_stabilizer,code.Z_stabilizer);
+		std::swap(code.X_boundary, code.Z_boundary);
+	}
+
+	return;
 }
 
 
-
-const StabilizerContainer& CSSCodes::get_X_stabilizer_list(){
-	return X_stabilizers_;
-}
-const StabilizerContainer& CSSCodes::get_Z_stabilizer_list(){
-	return Z_stabilizers_;
-}
-const StabilizerContainer& CSSCodes::get_Y_stabilizer_list(){
-	return Y_stabilizers_;
-}
 
 void CSSCodes::printout_graph(){
 	std::cout << "----------- GRAPH -----------" << std::endl;
@@ -41,22 +83,12 @@ void CSSCodes::printout_graph(){
 		}
 		std::cout << std::endl;
 	}
-
 }
 
-
-void CSSCodes::generate_stabilizers(){
-	/*//X_stabilizer
-	StabilizerContainer tmp;
-	for (auto element : graph_){
-		tmp.push_back(element.second);
-	}
-	std::swap(tmp,X_stabilizers_);*/
-}
-
-void CSSCodes::add_vertex(){
-	graph_[num_vertices_] = ParityCheck();
-	++num_vertices_;
+size_type CSSCodes::add_vertex(){
+	size_type id = graph_.size();
+	graph_[id] = ParityCheck();
+	return id;
 }
 
 void CSSCodes::add_edge(const size_type& qubit1, const size_type& qubit2){
@@ -68,8 +100,6 @@ void CSSCodes::add_edge(const size_type& qubit1, const size_type& qubit2){
 void CSSCodes::add_face(ParityCheck qubits){
 	Z_stabilizers_.push_back(qubits);
 }
-
-
 
 //
 // Interesting part starts HERE
@@ -86,41 +116,41 @@ void Hyperbolic::build_lattice(){
 
 void Hyperbolic::generate_center_face(){
 	//this will create a single center face from which the patch grows
-	assert(num_vertices_ == 0);
+	assert(graph_.size() == 0);
 	ParityCheck face_check;
-	add_vertex();
-	face_check.insert(num_vertices_-1);
+	size_type id = add_vertex();
+	face_check.insert(id);
 	for(int i=0; i < r_-1; ++i){
-		add_vertex();
-		add_edge(num_vertices_-1,num_vertices_-2);
-		face_check.insert(num_vertices_-1);
+		id = add_vertex();
+		add_edge(id,id-1);
+		face_check.insert(id);
 	}
-	add_edge(0,num_vertices_-1);
+	add_edge(0,id);
 	add_face(face_check);
 }
 
 void Hyperbolic::generate_center_vertex(){
 	//This will create the patches around a center vertex.
 	//This function will result in the dual lattice of generate_center_faces.
-	assert(num_vertices_ == 0);
-	add_vertex();
+	assert(graph_.size() == 0);
+	size_type id = add_vertex();
 	Graph frontier;
-	frontier[0] = ParityCheck();
+	frontier[id] = ParityCheck();
 
-	add_vertex_neighbors(frontier,0);
-	gen_faces_from_vertex(frontier,0);
+	add_vertex_neighbors(frontier,id);
+	gen_faces_from_vertex(frontier,id);
 	// add last face
 	ParityCheck face_check;
-	face_check.insert(0);
-	size_type last = *(std::prev(frontier[0].end(),1));
+	face_check.insert(id);
+	size_type last = *(std::prev(frontier[id].end(),1));
 	face_check.insert(last);
 	for (int i = 3; i < r_; ++i){
-		add_vertex();
-		add_edge(last, num_vertices_-1);
-		last = num_vertices_-1;
-		face_check.insert(last);
+		id = add_vertex();
+		add_edge(last,id);
+		face_check.insert(id);
+		last = id;
 	}
-	add_edge(last, *frontier[0].begin());
+	add_edge(id, *frontier[0].begin());
 	face_check.insert(*frontier[0].begin());
 	add_face(face_check);
 }
@@ -128,17 +158,14 @@ void Hyperbolic::generate_center_vertex(){
 void Hyperbolic::add_vertex_neighbors(Graph& frontier, size_type vertex){
 	for (int i = graph_[vertex].size(); i < s_; ++i){
 
-		add_vertex();
-		frontier[vertex].insert(num_vertices_-1);
-		add_edge(vertex, num_vertices_-1);
+		size_type id = add_vertex();
+		frontier[vertex].insert(id);
+		add_edge(vertex, id);
 	}
 	return;
 }
 
-void Hyperbolic::new_layer(){
-	//adds another layer around the code that is existing already
-	assert(num_vertices_!=0);
-	Graph frontier;
+void Hyperbolic::get_frontier(Graph & frontier){
 	for(auto element : graph_){
 		//only elments on the boundary
 		if (element.second.size() >= s_)
@@ -148,6 +175,53 @@ void Hyperbolic::new_layer(){
 			frontier[tmp] = ParityCheck();
 		}
 	}
+	return;
+}
+
+void Hyperbolic::generate_frontier_loop(std::vector<size_type> & original_loop){
+	Graph frontier;
+	get_frontier(frontier);
+
+	std::vector<size_type> loop(frontier.size());
+	loop.at(0) = frontier.begin()->first;
+
+	for(int i=1; i < frontier.size(); ++i){
+		//find the neighbors
+		std::vector<size_type> tmp;
+		for(auto neigh : graph_[loop.at(i-1)])
+			if(frontier.find(neigh) != frontier.end())
+				tmp.push_back(neigh);
+
+		//std::cout << tmp.size() << std::endl;
+
+		assert(tmp.size() == 2);
+
+
+		if(tmp.at(0) != loop.at(0) && tmp.at(0) != loop.at(abs(i-2))){
+				loop.at(i) = tmp.at(0);
+			}
+		else{
+			assert(tmp.at(0) == loop.at(0) || tmp.at(1) !=  loop.at(abs(i-2)));
+			loop.at(i) = tmp.at(1);
+		}
+	}
+	std::swap(loop, original_loop);
+	return;
+}
+
+
+
+void Hyperbolic::new_layer(){
+	//adds another layer around the code that is existing already
+	assert(graph_.size()!=0);
+	Graph frontier;
+	get_frontier(frontier);
+	
+	//for this lets first create a path along the frontier
+	//TODO ugly... fix this
+	std::vector<size_type> loop;
+	generate_frontier_loop(loop);
+
 	//add new vertices around all frontier vertices
 	for(auto element : frontier){
 		add_vertex_neighbors(frontier, element.first);
@@ -157,34 +231,98 @@ void Hyperbolic::new_layer(){
 		gen_faces_from_vertex(frontier, f.first);
 	}
 
-	//for this lets first create a path along the frontier
-	std::vector<size_type> loop;
-	loop.push_back(frontier.begin()->first);
-	for(int i=loop.size(); i < frontier.size(); ++i){
-		//find the neighbors
-		std::vector<size_type> tmp;
-		for(auto neigh : graph_[loop.back()])
-			if(frontier.find(neigh) != frontier.end())
-				tmp.push_back(neigh);
-
-		assert(tmp.size() == 2);
-
-
-		if(tmp.at(0) != *loop.begin() && tmp.at(0) != loop.at(abs((loop.size()-2)%loop.size()))){
-				loop.push_back(tmp.at(0));
-			}
-		else{
-			assert(tmp.at(0) == *loop.begin() || tmp.at(1) !=  loop.at(abs((loop.size()-2)%loop.size())));
-			loop.push_back(tmp.at(1));
-		}
-	}
 	for(int i = 0; i < loop.size(); ++i){
 		gen_faces_from_edge(frontier, loop.at(i), loop.at((i+1)%loop.size()));
 	}
 }
 
-void Hyperbolic::generate_rough_edges(){
+void Hyperbolic::generate_rough_edges(short number){
+	StabilizerContainer X_boundary;
+	StabilizerContainer Z_boundary;
 
+	number = 2* number;
+
+	// add loop
+	std::vector<size_type> loop;
+	generate_frontier_loop(loop);
+
+	if(loop.size()%number != 0){
+		std::cerr << "Cannot partition into equal sizes for rough edges. Last partition will be smaller." << std::endl;
+	}
+
+	// iterate through loop and divide into pieces (interested in qubits = edges not vertices)
+	for(int i = 0; i < number; ++i){
+		if (i%2){
+			X_boundary.push_back(ParityCheck());
+			for(int j=0; j < loop.size()/number; ++j){
+				//two vertices
+				size_type v1 = i* loop.size()/number + j;
+				size_type v2 = (v1 + 1)%loop.size();
+				// remove qubits not needed
+				--num_qubits_;
+				graph_[v1].erase(v2);
+				graph_[v2].erase(v1);				
+			}
+			// remove nodes with no neighbors nodes with one neighbor will be ignored when exporting
+			// but are still needed to determine the qubit ids
+			for(int j=0; j <= loop.size()/number; ++j){
+				if(graph_[j].size() == 0 ){
+					graph_.erase(j);
+
+					//only rarely executed... but still expensive
+					for(auto & k : Z_stabilizers_){
+						k.erase(j);
+					}
+				}
+			}
+			// add neighbors of vertices with single neighbors to the boundary stabilizers
+			for(int j=0; j <= loop.size()/number; ++j){
+				if(graph_[j].size() == 1 ){
+					X_boundary.back().insert(*graph_[j].begin());
+				}
+			}
+		}
+
+		else{
+			Z_boundary.push_back(ParityCheck());
+			for(int j=0; j < loop.size()/number; ++j){
+				size_type v1 = i* loop.size()/number + j;
+				size_type v2 = (v1 + 1)%loop.size();
+				// insert boundary Z stabilizer
+				for(uint i = 0; i<Z_stabilizers_.size(); ++i){
+					if(Z_stabilizers_.at(i).find(v1) != Z_stabilizers_.at(i).end() && Z_stabilizers_.at(i).find(v2) != Z_stabilizers_.at(i).end()){
+						Z_boundary.back().insert(i);
+					}
+				}
+			}
+		}
+	}
+
+
+	// boundaries
+	std::vector<size_type> deleted_vector;
+	for(size_type i = 0; i<graph_.size(); ++i){
+		if(graph_.at(i).size() < 2){
+			deleted_vector.push_back(i);
+		}
+	}
+	//since not all vertices are used in the output, the ids need to be adjusted
+	for(auto & edge : X_boundary){
+		ParityCheck new_edge;
+		for(auto id : edge){
+			for(auto deleted : deleted_vector){
+				if(id > deleted){
+					--id;
+				}
+			}
+			new_edge.insert(id);
+		}
+		std::swap(new_edge, edge);
+	}
+
+	std::swap(X_bound_result, X_boundary);
+	std::swap(Z_bound_result, Z_boundary);
+	return;
 }
 
 void Hyperbolic::gen_faces_from_vertex(Graph& frontier, size_type vertex){
@@ -197,10 +335,10 @@ void Hyperbolic::gen_faces_from_vertex(Graph& frontier, size_type vertex){
 		ParityCheck face_check;
 		face_check.insert(vertex);
 		for (int i = 3; i < r_; ++i){
-			add_vertex();
-			face_check.insert(num_vertices_-1);
-			add_edge(last, num_vertices_-1);
-			last = num_vertices_-1;
+			size_type id = add_vertex();
+			face_check.insert(id);
+			add_edge(last, id);
+			last = id;
 		}
 		add_face(face_check);
 		add_edge(last, *it);
@@ -227,10 +365,10 @@ void Hyperbolic::gen_faces_from_edge(Graph& frontier, size_type vertex1, size_ty
 	auto last = *last_it;
 	face_check.insert(last);
 	for (int i = 4; i < r_; ++i){
-		add_vertex();
-		add_edge(last, num_vertices_-1);
-		face_check.insert(num_vertices_-1);
-		last = num_vertices_-1;
+		size_type id = add_vertex();
+		add_edge(last, id);
+		face_check.insert(id);
+		last = id;
 	}
 	add_edge(last, *end_it);
 	face_check.insert(*end_it);
