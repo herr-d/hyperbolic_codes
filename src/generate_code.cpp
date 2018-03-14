@@ -1,6 +1,6 @@
 #include <basic_includes.hpp>
 #include <generate_code.hpp>
-
+#include <path_finding.hpp>
 
 size_type CSSCodes::get_number_qubits(){
 	return num_qubits_;
@@ -17,9 +17,26 @@ size_type CSSCodes::get_number_Z_stabilizers(){
 	return Z_stabilizers_.size();
 }
 
+size_type get_logical_start(ParityCheck& boundary_data_qubits, StabilizerContainer& stabilizer, ParityCheck& boundary){
+	//find the start inside the boundary
+	for(auto stabil_pos : boundary){
+		for(auto qubit : stabilizer.at(stabil_pos)){
+			if (boundary_data_qubits.find(qubit) != boundary_data_qubits.end())
+			{
+				return qubit;
+			}
+		}
+	}
+	throw 1;
+}
+
+
 void CSSCodes::generate_state(Code_info & code){
 	//create qubits and a temporary lookup table
 	std::map<std::pair<size_type,size_type>, size_type> tmp_lookup;
+	ParityCheck XDataQubits;
+	ParityCheck ZDataQubits;
+
 	size_type qubit_id = 0;
 	for(auto node : graph_){
 		size_type center_node = node.first;
@@ -29,9 +46,16 @@ void CSSCodes::generate_state(Code_info & code){
 				tmp_lookup[std::make_pair(center_node, neighbor)] = qubit_id;
 				++qubit_id;
 			}
+
 		}
 	}
 	code.num_qubits = tmp_lookup.size();
+
+	/*
+	std::cout << "Qubit lookup table :" << std::endl;
+	for(auto element : tmp_lookup){
+		std::cout << "( " << element.first.first << " , " << element.first.second << " ): " << element.second << std::endl;
+	}*/
 
 	//generate X checks with physical qubits
 	for(auto X_check : graph_){
@@ -42,6 +66,9 @@ void CSSCodes::generate_state(Code_info & code){
 			}
 			code.X_stabilizer.push_back(tmp);
 		}
+		else if(X_check.second.size() == 1){
+			XDataQubits.insert(tmp_lookup[std::make_pair(std::min(X_check.first,*X_check.second.begin()),std::max(X_check.first,*X_check.second.begin()))]);
+		}
 	}
 
 
@@ -50,23 +77,56 @@ void CSSCodes::generate_state(Code_info & code){
 		ParityCheck tmp;
 		for(size_type node : Z_check){
 			for(auto neighbor : graph_.at(node)){
+				if(neighbor > node)
+					continue;
 				if (Z_check.find(neighbor) != Z_check.end()){
-					tmp.insert(tmp_lookup[std::make_pair(std::min(node,neighbor),std::max(node,neighbor))]);
+					size_type qubit = tmp_lookup[std::make_pair(std::min(node,neighbor),std::max(node,neighbor))];
+					tmp.insert(qubit);
+					if(ZDataQubits.find(qubit) != ZDataQubits.end()){
+						ZDataQubits.erase(qubit);
+					}
+					else{
+						ZDataQubits.insert(qubit);
+					}
 				}
 			}
 		}
 		code.Z_stabilizer.push_back(tmp);
 	}
 
-
 	std::swap(code.X_boundary, X_bound_result);
 	std::swap(code.Z_boundary, Z_bound_result);
 
+	//generate logical operator chains
+
+	//find endpoints for X operator chain
+
+	for(int i = 0; i < code.X_boundary.size()/2; ++i){
+		size_type start_boundary = (2*i)%code.X_boundary.size();
+		size_type end_boundary = (2*i + 1)%code.X_boundary.size();
+		ParityCheck tmp;
+		tmp.insert(get_logical_start(XDataQubits, code.X_stabilizer, code.X_boundary[start_boundary]));
+		tmp.insert(get_logical_start(XDataQubits, code.X_stabilizer, code.X_boundary[end_boundary]));
+		Dijkstra(code.X_stabilizer, tmp, code.num_qubits);
+		code.X_operator.push_back(tmp);
+	}
+
+	//find endpoints for Z operator chain
+	for(int i = 0; i < code.Z_boundary.size()/2; ++i){
+		size_type start_boundary = (2*i)%code.Z_boundary.size();
+		size_type end_boundary = (2*i + 1)%code.Z_boundary.size();
+		ParityCheck tmp;
+		tmp.insert(get_logical_start(ZDataQubits, code.Z_stabilizer, code.Z_boundary[start_boundary] ));
+		tmp.insert(get_logical_start(ZDataQubits, code.Z_stabilizer, code.Z_boundary[end_boundary] ));
+		Dijkstra(code.Z_stabilizer, tmp, code.num_qubits);
+		code.Z_operator.push_back(tmp);
+	}
 
 	//resolve dual
 	if(dual_){
 		std::swap(code.X_stabilizer,code.Z_stabilizer);
 		std::swap(code.X_boundary, code.Z_boundary);
+		std::swap(code.X_operator, code.Z_operator);
 	}
 
 	return;
@@ -192,8 +252,6 @@ void Hyperbolic::generate_frontier_loop(std::vector<size_type> & original_loop){
 			if(frontier.find(neigh) != frontier.end())
 				tmp.push_back(neigh);
 
-		//std::cout << tmp.size() << std::endl;
-
 		assert(tmp.size() == 2);
 
 
@@ -236,94 +294,6 @@ void Hyperbolic::new_layer(){
 	}
 }
 
-void Hyperbolic::generate_rough_edges(short number){
-	StabilizerContainer X_boundary;
-	StabilizerContainer Z_boundary;
-
-	number = 2* number;
-
-	// add loop
-	std::vector<size_type> loop;
-	generate_frontier_loop(loop);
-
-	if(loop.size()%number != 0){
-		std::cerr << "Cannot partition into equal sizes for rough edges. Last partition will be smaller." << std::endl;
-	}
-
-	// iterate through loop and divide into pieces (interested in qubits = edges not vertices)
-	for(int i = 0; i < number; ++i){
-		if (i%2){
-			X_boundary.push_back(ParityCheck());
-			for(int j=0; j < loop.size()/number; ++j){
-				//two vertices
-				size_type v1 = i* loop.size()/number + j;
-				size_type v2 = (v1 + 1)%loop.size();
-				// remove qubits not needed
-				--num_qubits_;
-				graph_[v1].erase(v2);
-				graph_[v2].erase(v1);				
-			}
-			// remove nodes with no neighbors nodes with one neighbor will be ignored when exporting
-			// but are still needed to determine the qubit ids
-			for(int j=0; j <= loop.size()/number; ++j){
-				if(graph_[j].size() == 0 ){
-					graph_.erase(j);
-
-					//only rarely executed... but still expensive
-					for(auto & k : Z_stabilizers_){
-						k.erase(j);
-					}
-				}
-			}
-			// add neighbors of vertices with single neighbors to the boundary stabilizers
-			for(int j=0; j <= loop.size()/number; ++j){
-				if(graph_[j].size() == 1 ){
-					X_boundary.back().insert(*graph_[j].begin());
-				}
-			}
-		}
-
-		else{
-			Z_boundary.push_back(ParityCheck());
-			for(int j=0; j < loop.size()/number; ++j){
-				size_type v1 = i* loop.size()/number + j;
-				size_type v2 = (v1 + 1)%loop.size();
-				// insert boundary Z stabilizer
-				for(uint i = 0; i<Z_stabilizers_.size(); ++i){
-					if(Z_stabilizers_.at(i).find(v1) != Z_stabilizers_.at(i).end() && Z_stabilizers_.at(i).find(v2) != Z_stabilizers_.at(i).end()){
-						Z_boundary.back().insert(i);
-					}
-				}
-			}
-		}
-	}
-
-
-	// boundaries
-	std::vector<size_type> deleted_vector;
-	for(size_type i = 0; i<graph_.size(); ++i){
-		if(graph_.at(i).size() < 2){
-			deleted_vector.push_back(i);
-		}
-	}
-	//since not all vertices are used in the output, the ids need to be adjusted
-	for(auto & edge : X_boundary){
-		ParityCheck new_edge;
-		for(auto id : edge){
-			for(auto deleted : deleted_vector){
-				if(id > deleted){
-					--id;
-				}
-			}
-			new_edge.insert(id);
-		}
-		std::swap(new_edge, edge);
-	}
-
-	std::swap(X_bound_result, X_boundary);
-	std::swap(Z_bound_result, Z_boundary);
-	return;
-}
 
 void Hyperbolic::gen_faces_from_vertex(Graph& frontier, size_type vertex){
 	//assert(frontier[vertex].size() > 1);
@@ -333,15 +303,23 @@ void Hyperbolic::gen_faces_from_vertex(Graph& frontier, size_type vertex){
 	while(it != frontier[vertex].end()){
 		//now add as many vertices to get an r_ sided face
 		ParityCheck face_check;
+
+		//first add the vertex on the frontier
 		face_check.insert(vertex);
+
+		//now add the first already generated vertex
+		face_check.insert(last);
+		//now add any additional vertices in between
 		for (int i = 3; i < r_; ++i){
 			size_type id = add_vertex();
 			face_check.insert(id);
 			add_edge(last, id);
 			last = id;
 		}
-		add_face(face_check);
+		face_check.insert(*it);
 		add_edge(last, *it);
+		add_face(face_check);
+		last = *it;
 		it = std::next(it, 1);
 	}
 }
@@ -373,5 +351,112 @@ void Hyperbolic::gen_faces_from_edge(Graph& frontier, size_type vertex1, size_ty
 	add_edge(last, *end_it);
 	face_check.insert(*end_it);
 	add_face(face_check);
+	return;
+}
+
+
+void Hyperbolic::generate_rough_edges(short number){
+	StabilizerContainer X_boundary;
+	StabilizerContainer Z_boundary;
+
+	number = 2* number;
+	// add loop
+	std::vector<size_type> loop;
+	generate_frontier_loop(loop);
+
+	if(loop.size()%number != 0){
+		std::cerr << "Cannot partition into equal sizes for rough edges. Last partition will be smaller." << std::endl;
+	}
+
+	// iterate through loop and divide into pieces (interested in qubits = edges not vertices)
+	for(int i = 0; i < number; ++i){
+		if (i%2){
+			X_boundary.push_back(ParityCheck());
+			for(int j=0; j < loop.size()/number; ++j){
+				//two vertices
+				size_type v1 = (i* loop.size()/number + j);
+				size_type v2 = (v1 + 1)%loop.size();
+				// remove qubits not needed
+				--num_qubits_;
+				graph_[loop.at(v1)].erase(loop.at(v2));
+				graph_[loop.at(v2)].erase(loop.at(v1));				
+			}
+			// remove nodes with no neighbors. Nodes with one neighbor will be ignored when exporting
+			// but are still needed to determine the qubit ids
+			for(int j=0; j < loop.size()/number; ++j){
+				size_type v1 = i* loop.size()/number + j;
+				if(graph_.at(loop.at(v1)).size() == 0 ){
+
+					graph_.erase(loop.at(v1));
+
+
+				}
+			}
+			// add neighbors of vertices with single neighbors to the boundary stabilizers
+			for(int j=0; j < loop.size()/number; ++j){
+				size_type v1 = (i* loop.size()/number + j);
+				if(graph_[loop.at(v1)].size() == 1 ){
+					X_boundary.back().insert(*graph_[loop.at(v1)].begin());
+				}
+			}
+		}
+		else{
+			Z_boundary.push_back(ParityCheck());
+			for(int j=0; j < loop.size()/number; ++j){
+				size_type v1 = i* loop.size()/number + j;
+				size_type v2 = (v1 + 1)%loop.size();
+				// insert boundary Z stabilizer
+				for(uint i = 0; i<Z_stabilizers_.size(); ++i){
+					if(Z_stabilizers_.at(i).find(loop.at(v1)) != Z_stabilizers_.at(i).end() && Z_stabilizers_.at(i).find(loop.at(v2)) != Z_stabilizers_.at(i).end()){
+						Z_boundary.back().insert(i);
+					}
+				}
+			}
+		}
+	}
+
+	
+	// Some of the X-stabilizers get deleted and thus the boundary ids need to change
+	// Z stabilizers do not get deleted and thus do not need to be modified
+	// boundaries
+	std::set<size_type> deleted_vector;
+
+	for(auto i : graph_){
+		if(i.second.size() == 0){
+			deleted_vector.insert(i.first);
+		}
+	}
+
+	//only rarely executed... but still expensive
+	for(auto & stabilizer : Z_stabilizers_){
+		for(auto deleted : deleted_vector)
+			stabilizer.erase(deleted);
+	}
+
+
+
+	for(auto i : graph_){
+		if(i.second.size() == 2 || i.second.size()==1){
+			deleted_vector.insert(i.first);
+		}
+	}
+	// since not all vertices are used in the output, the ids need to be adjusted
+	// probably not needed but better safe than sorry
+	for(auto & edge : X_boundary){
+		ParityCheck new_edge;
+		for(auto id : edge){
+			for(auto deleted : deleted_vector){
+				if(id > deleted){
+					--id;
+				}
+			}
+			new_edge.insert(id);
+		}
+		std::swap(new_edge, edge);
+	}
+
+
+	std::swap(X_bound_result, X_boundary);
+	std::swap(Z_bound_result, Z_boundary);
 	return;
 }

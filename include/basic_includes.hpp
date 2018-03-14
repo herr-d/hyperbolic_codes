@@ -23,6 +23,7 @@ struct Code_info{
 	StabilizerContainer X_stabilizer, Z_stabilizer;
 	StabilizerContainer X_boundary, Z_boundary;
 	size_type num_qubits;
+	StabilizerContainer X_operator, Z_operator;
 };
 
 

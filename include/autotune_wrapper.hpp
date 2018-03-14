@@ -7,6 +7,9 @@
 #include <my_time/my_time.h>
 
 
+//stupid function pointer... I cant define it in the class and thus need access to variables... thus: extern Code_info code
+BALL *get_boundary(int i, int j, long int big_t, int type, void *boundaries);
+extern Code_info code;
 
 /*
  * Wrapper class for the autotune library.
@@ -15,23 +18,23 @@
 */
 class Wrapper{
 private:
-	//these will be replaced
-	int seed0 = 42;
-	int seed1 = 43;
-	int distance = 10;
-	int t_delete = 100; //delete after 100 steps
-	char dir[];
+	char *dir;
 
+	const int num_padding = 2; //total number of steps that need to be added due to scheduling conflicts: worst case estimate;
+	int seed0;
+	int seed1;
+	int distance;
+	int t_delete; //delete after 100 steps
+	int num_checks;
+	int num_X_changes;
+	int num_Z_changes;
+	int last_X_check;
+	int last_Z_check;
 
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// Varibles needed for Hyperbolic codes
 	///////////////////////////////////////////////////////////////////////////////////////////
-
-	const StabilizerContainer& X_stabilizers, Z_stabilizers; // Stabilizers of the code
-	const StabilizerContainer& X_boundary, Z_boundary; // List of stabilizers on the boundary
 	DP_QC *dp_qc; //depolarizing quantum computer
-	size_type num_data_qubits; // number of data qubits of the code
-	size_type num_ancillae; // how many syndrome qubits are needed
 
 
 	///////////////////////////////////////////////////////////////////////////////////////////
@@ -49,9 +52,10 @@ private:
 	SET*** dual_set; // sets are associated with each dual syndrome on each time step
 
 	BALL** boundaries; // ball of boundaries defined above used for the simulation
-	SET** spacial_boundary; // i don't know
-	SET** temporal_boundary; // i don't know
-
+	SET** primal_boundary; // i don't know
+	SET** dual_boundary; // i don't know
+	SET** temporal_primal_boundary;
+	SET** temporal_dual_boundary;
 
 
 
@@ -67,6 +71,12 @@ private:
 	*/
 	SET *create_boundary_set(QC *qc, int id, int type, int i, int j, int t);
 
+	void correct_mts();
+
+	void process_aug_edge(AUG_EDGE *ae);
+	void process_aug_edges(MATCHING *m);
+
+
 	/*
 	 * Generates the sets and syndromes needed for the simulation
 	 * [in]: no argument, but relies on defined X_stabilzers, etc.
@@ -80,7 +90,14 @@ private:
 	 *
 	 * [out]: adds results to frame such that autotune can process it
 	*/
-	void syndrome_checks();
+	void measure_stabilizers(size_type big_t);
+
+
+	void init_X_stabilizers();
+	void init_Z_stabilizers();
+	void data_error_during_init();
+	void delete_data();
+
 
 	/*
 	 * performs the Z_stabilizer defined in Z_stabilizers.at(pos)
@@ -88,7 +105,7 @@ private:
 	 * 		pos: indicates which stabilizer of the array should be performed
 	 * [out]: no return, but result is added to frame
 	*/
-	void perform_Z_stabilizer(size_type pos);
+	void perform_Z_stabilizers();
 
 	/*
 	 * performs the X_stabilizer defined in X_stabilizers.at(pos)
@@ -96,15 +113,12 @@ private:
 	 * 		pos: indicates which stabilizer of the array should be performed
 	 * [out]: no return, but result is added to frame
 	*/
-	void perform_X_stabilizer(size_type pos);
+	void perform_X_stabilizers();
 
-	/*
-	 * During initialization of syndrome qubits, data qubits are idle and subject to errors
-	 * [in]:
-	 *
-	 * [out]: no return, errors are tracked by autotune
-	*/
-	void add_idle_data_qubit_errors();
+	void measure_X_stabilizers(size_type big_t);
+	void measure_Z_stabilizers(size_type big_t);
+	void allocate();
+	void init(RECIPE_ADV *rec, double error_probability);
 
 	/*
 	 * Given a stabilizer, is it on the boundary?
@@ -113,22 +127,46 @@ private:
 	 * 		X_not_Z: flag to switch between X and Z stabilizers
 	 * [out]: pointer to boundary SET, if not on boundary return NULL
 	*/
-	SET *on_boundary(size_type pos, bool X_not_Z);
+	SET *infer_boundary(size_type pos, bool X_not_Z);
+
+	void print_stats();
+
+	void test_correct();
 
 public:
 	/*
 	 * Initialization of everything
 	 * [in]:
-	 * 		X_stabil: const reference to all X stabilizers
-	 * 		Z_stabil: const reference to all Z stabilizers
- 	 * 		X_bound: const reference to all X boundaries
-	 * 		Z_bound: const reference to all X boundaries
-	 * 		qubits: number of data qubits in the code
-	 * 		error_probability: sets a constant probability for errors to occur
-	 				(the weight of different errors can be adjusted in the EMS directory)
+	 * 		
 	 * [out]: no return, but all memory is allocated and all variables are initialized
 	*/
-	Wrapper(const Code_info & code, double error_probability);
+	Wrapper(double error_probability);
+	Wrapper();
+	Wrapper(const Wrapper & a);
+
+
+	/*
+	 *
+	 *
+	 *
+	*/
+	void generate_recipe();
+
+
+	/*
+	 *
+	 *
+	 *
+	*/
+	void calculate_t_check(double error_probability);
+
+	/*
+	 *
+	 *
+	 *
+	*/
+	void reset_recipe();
+
 
 	/*
 	 * Runs the simulation, to get an estimate on the logical error rate

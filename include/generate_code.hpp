@@ -20,7 +20,7 @@ protected:
 	bool dual_; // in the final output swap X and Z-stabilizers
 	
 public:
-	CSSCodes() : num_qubits_(0), graph_(), Z_stabilizers_(){};
+	CSSCodes() : num_qubits_(0), dual_(false), Z_stabilizers_(), graph_(), X_bound_result(), Z_bound_result(){};
 	~CSSCodes(){};
 
 
@@ -148,7 +148,6 @@ public:
 	 * [out]: no output
 	*/
 	void generate_rough_edges(short number);
-
 
 	/*  grows a new layer around the existing lattice
 	 * [in]: no input

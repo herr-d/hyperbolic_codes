@@ -1,12 +1,10 @@
 #include <gtest/gtest.h>
 #include <generate_code.hpp>
 
-
 TEST(Hyperbolic, Creation_Surface){
 	//surface code
 	Hyperbolic small(4, 4, 1);
 	small.build_lattice();
-	small.printout_graph();
 	EXPECT_EQ(9,small.get_number_Z_stabilizers());
 	EXPECT_EQ(16,small.get_number_X_stabilizers());
 	EXPECT_EQ(24,small.get_number_qubits());
@@ -63,8 +61,33 @@ TEST(Hyperbolic, generate_center_vertex){
 }
 
 
-TEST(Hyperbolic, generate_rough_edges){
 
+TEST(Hyperbolic, generate_state){
+	Code_info code;
+	Hyperbolic small(4, 4, 1);
+	small.build_lattice();
+	small.generate_state(code);
+	EXPECT_EQ(9,code.Z_stabilizer.size());
+	EXPECT_EQ(16,code.X_stabilizer.size());
+	EXPECT_EQ(24,code.num_qubits);
+}
+
+TEST(Hyperbolic, generate_rough_edges){
+	Code_info code;
+	Hyperbolic small(4, 4, 1);
+	small.build_lattice();
+
+	//now add rough edges
+	small.generate_rough_edges(2);
+	small.generate_state(code);
+
+
+	EXPECT_EQ(code.num_qubits, small.get_number_qubits());
+
+
+	EXPECT_EQ(9,code.Z_stabilizer.size());
+	//EXPECT_EQ(8,code.X_stabilizer.size()); // can be either 12 or 8 qubits, depending on where the edge starts
+	EXPECT_EQ(18,code.num_qubits);
 }
 
 
