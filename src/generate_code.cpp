@@ -51,12 +51,6 @@ void CSSCodes::generate_state(Code_info & code){
 	}
 	code.num_qubits = tmp_lookup.size();
 
-	/*
-	std::cout << "Qubit lookup table :" << std::endl;
-	for(auto element : tmp_lookup){
-		std::cout << "( " << element.first.first << " , " << element.first.second << " ): " << element.second << std::endl;
-	}*/
-
 	//generate X checks with physical qubits
 	for(auto X_check : graph_){
 		if (X_check.second.size() > 1){
@@ -96,6 +90,8 @@ void CSSCodes::generate_state(Code_info & code){
 
 	std::swap(code.X_boundary, X_bound_result);
 	std::swap(code.Z_boundary, Z_bound_result);
+	std::swap(code.XBoundaryQubits, XDataQubits);
+	std::swap(code.ZBoundaryQubits, ZDataQubits);
 
 	//generate logical operator chains
 
@@ -105,8 +101,8 @@ void CSSCodes::generate_state(Code_info & code){
 		size_type start_boundary = (2*i)%code.X_boundary.size();
 		size_type end_boundary = (2*i + 1)%code.X_boundary.size();
 		ParityCheck tmp;
-		tmp.insert(get_logical_start(XDataQubits, code.X_stabilizer, code.X_boundary[start_boundary]));
-		tmp.insert(get_logical_start(XDataQubits, code.X_stabilizer, code.X_boundary[end_boundary]));
+		tmp.insert(get_logical_start(code.XBoundaryQubits, code.X_stabilizer, code.X_boundary[start_boundary]));
+		tmp.insert(get_logical_start(code.XBoundaryQubits, code.X_stabilizer, code.X_boundary[end_boundary]));
 		Dijkstra(code.X_stabilizer, tmp, code.num_qubits);
 		code.X_operator.push_back(tmp);
 	}
@@ -116,8 +112,8 @@ void CSSCodes::generate_state(Code_info & code){
 		size_type start_boundary = (2*i)%code.Z_boundary.size();
 		size_type end_boundary = (2*i + 1)%code.Z_boundary.size();
 		ParityCheck tmp;
-		tmp.insert(get_logical_start(ZDataQubits, code.Z_stabilizer, code.Z_boundary[start_boundary] ));
-		tmp.insert(get_logical_start(ZDataQubits, code.Z_stabilizer, code.Z_boundary[end_boundary] ));
+		tmp.insert(get_logical_start(code.ZBoundaryQubits, code.Z_stabilizer, code.Z_boundary[start_boundary] ));
+		tmp.insert(get_logical_start(code.ZBoundaryQubits, code.Z_stabilizer, code.Z_boundary[end_boundary] ));
 		Dijkstra(code.Z_stabilizer, tmp, code.num_qubits);
 		code.Z_operator.push_back(tmp);
 	}
@@ -127,6 +123,7 @@ void CSSCodes::generate_state(Code_info & code){
 		std::swap(code.X_stabilizer,code.Z_stabilizer);
 		std::swap(code.X_boundary, code.Z_boundary);
 		std::swap(code.X_operator, code.Z_operator);
+		std::swap(code.XBoundaryQubits, code.ZBoundaryQubits);
 	}
 
 	return;

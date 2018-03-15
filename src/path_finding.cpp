@@ -75,7 +75,7 @@ void Dijkstra(StabilizerContainer stabilizer, ParityCheck& result_container, siz
 
 
 // Path finding between two stabilizers. Data qubits along the path are returned.
-void DataQubits(StabilizerContainer stabilizers, size_type begin, size_type end){
+void DataQubits(StabilizerContainer& stabilizers, size_type begin, ParityCheck& end, ParityCheck& result_container){
 	std::vector<size_type> dist(stabilizers.size()+1, stabilizers.size());
 	std::vector<size_type> prev(stabilizers.size()+1, stabilizers.size());
 
@@ -87,8 +87,7 @@ void DataQubits(StabilizerContainer stabilizers, size_type begin, size_type end)
 
 	dist.at(begin) = 0;
 
-
-
+	//TODO: TOO SLOW!!!!
 	while(open_set.size() > 0){
 		size_type min_element = stabilizers.size();
 		size_type cur_dist = stabilizers.size();
@@ -101,21 +100,39 @@ void DataQubits(StabilizerContainer stabilizers, size_type begin, size_type end)
 
 		open_set.erase(min_element);
 
-		if(min_element == end)
+		if(end.find(min_element) != end.end())
 			break;
 
 		//how to get neighboring stabilizers efficiently?
-		for(auto stabil : stabilizer){
-			if(stabil.find(min_element) != stabil.end()){
-				for(size_type neighbor : stabil){
-					if (dist.at(neighbor) > cur_dist+1){
-						dist.at(neighbor) = cur_dist + 1;
-						prev.at(neighbor) = min_element;
-					}
+		for(auto i : open_set){
+			for(auto s : stabilizers.at(min_element)){
+				if(stabilizers.at(i).find(s) != stabilizers.at(i).end()){
+					dist.at(s) = cur_dist + 1;
+					prev.at(s) = min_element;
 				}
 			}
-		}
 
+		}
 	}
 
+	size_type cur_element;
+	for(auto i : end){
+		cur_element = i;
+		if (dist.at(i) < stabilizers.size()+1)
+			break;
+	}
+
+	end.clear();
+	end.insert(cur_element);
+
+	ParityCheck path_qubits;
+
+	while(cur_element != begin){
+		for(auto i : stabilizers.at(cur_element)){
+			if(stabilizers.at(prev[cur_element]).find(i) != stabilizers.at(prev[cur_element]).end())
+				path_qubits.insert(i);
+		}
+		cur_element = prev[cur_element];
+	}
+	std::swap(path_qubits, result_container);
 }

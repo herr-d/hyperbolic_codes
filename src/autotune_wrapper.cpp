@@ -340,9 +340,8 @@ Wrapper::Wrapper(double error_probability) : Wrapper(){
 	dir = (char*)malloc(100*sizeof(char));
 	strcpy(dir, "../../autotune/ex/ems/");
 
-
 	//create recipe-- whatever that does
-	recipe = qc_create_recipe_adv(RECIPE_INFINITE, 100, 100, false);
+	recipe = qc_create_recipe_adv(RECIPE_INFINITE, code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(), 2, false);
 
 	//allocate data containers
 	allocate();
@@ -387,11 +386,11 @@ void Wrapper::init(RECIPE_ADV *rec, double error_probability){
 
 	// first primal
 	for(int i = 0; i < code.X_boundary.size(); ++i){
-		primal_boundary[i] = create_boundary_set(dp_qc->qc, i, PRIMAL_BOUNDARY, -i, -1, 0);
+		primal_boundary[i] = create_boundary_set(dp_qc->qc, i, PRIMAL_BOUNDARY, i, -1, 0);
 	}
 	// second dual
 	for(int i = 0; i < code.Z_boundary.size(); ++i){
-		dual_boundary[i] = create_boundary_set(dp_qc->qc, i + code.X_boundary.size(), DUAL_BOUNDARY, - i - code.X_boundary.size(), -2, 0);
+		dual_boundary[i] = create_boundary_set(dp_qc->qc, i + code.X_boundary.size(), DUAL_BOUNDARY, i, -2, 0);
 	}
 
 	//temporal
@@ -461,7 +460,7 @@ void Wrapper::generate_recipe(){
 	do{
 		measure_stabilizers(big_t++);
 	}while (qc_boot_up_adv(dp_qc->qc, recipe, 2, 12) != DONE);
-
+	std::cout << "SETUP IS ONLY WORKING FOR SMALL CODES" << std::endl;
 	return;
 }
 
@@ -489,8 +488,9 @@ void Wrapper::calculate_t_check(double error_probability){
 		qc_mwpm(dp_qc->qc, false);
 		correct_mts();
 		qc_trim_nests(dp_qc->qc, dp_qc->qc->unfinalized_big_t - 20);
-		m_time_delete(dp_qc->qc->m_pr);	
+		m_time_delete(dp_qc->qc->m_pr);
 		m_time_delete(dp_qc->qc->m_du);
+
 
 		if (big_t > 0 && (big_t % t_check) == 0) {
 			test_correct();	
@@ -529,6 +529,8 @@ void Wrapper::calculate_t_check(double error_probability){
 	}
 	// Free the sc_dp_qc now that the t_check has been calculated
 	delete_data();
+	qc_reset_recipe_adv(recipe);
+	std::cout << "uiae " << std::endl;
 }
 
 void Wrapper::reset_recipe(){
@@ -619,6 +621,7 @@ void Wrapper::print_stats() {
 
 
 void Wrapper::process_aug_edge(AUG_EDGE *ae) {
+	// Performs correction given two endpoints of a matched error chain
 	// Get the coordinates at the start and end of the edge (come from boundary coordinates and set coordinates)
 	// ae->va: source vertex of the edge
 	// ae->vb: destination vertex of the edge
@@ -627,52 +630,70 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 	int	i2 = ae->vb->i;
 	int	j2 = ae->vb->j;
 	int error = 0;
-	assert(!(j1<0 && j2<0));
+	bool boundary = false;
+	ParityCheck end; //list of end positions (only multiple elments when boundary is involved)
 	// first resolve boundary to proper coordinates
 	if(j1 < 0){
-		// boundary
-		if(j1 <= -3){ // temporal boundary
+		if(j1<=-3){ // temporal boundary
 			return;
 		}
-		if(j1 == -1){ // primal boundary: set to closest qubit position
-			i1 =
-			j1 =
-			error = Z; // primal has X-stabilizers -> detection of Z errors
-		}
-		if(j1 == -2){ // dual boundary: set to closest qubit position
-			i1 = 
-			j1 = 
-			error = X; // dual has Z-stabilizers -> detection of X errors
-		}
+		//only one boundary possible -> always have the boundary as destinaltion
+		std::swap(i1,i2);
+		std::swap(j1,j2);
 	}
-	// same for the destination
+	
+	// now resolve the boundary
 	if(j2 < 0){
 		// boundary
 		if(j2 <= -3){ // temporal boundary
 			return;
 		}
+		boundary = true;
 		if(j2 == -1){ // primal boundary: set to closest qubit position
-			i2 =
-			j2 =
+			for(auto element : code.X_boundary.at(i2)){
+				end.insert(element);
+			}
 			error = Z; // primal has X-stabilizers -> detection of Z errors
 		}
 		if(j2 == -2){ // dual boundary: set to closest qubit position
-			i2 = 
-			j2 = 
+			for(auto element : code.Z_boundary.at(i2)){
+				end.insert(element);
+			}
 			error = X; // dual has Z-stabilizers -> detection of X errors
 		}
 	}
+	else{
+		// not on the boundary
+		end.insert(i2);
+		if(j2 == 0){ // primal
+			error =  Z;
+		} else{ // dual
+			error = X;
+		}
+	}
 
-
-	// perform pathfinding
+	// perform pathfinding and obtain data qubits with an error
 	ParityCheck path;
-	// from the path deduce the data qubits
+	if(j1 ==0){ //primal syndromes
+		DataQubits(code.X_stabilizer, i1, end, path);
+	}
+	else{ //dual syndromes
+		DataQubits(code.Z_stabilizer, i1, end, path);
+	}
+	//add last element on boundary
+	if(boundary){
+		if(j1 == 0){
+			path.insert(code.GetBoundaryQubitFromStabilizer(code.XBoundaryQubits,code.X_stabilizer.at(*end.begin())));
+		}
+		if(j1 == 1){
+			path.insert(code.GetBoundaryQubitFromStabilizer(code.ZBoundaryQubits,code.Z_stabilizer.at(*end.begin())));
+		}
+	}
 
 	// apply an error all elements of the frame along the path
 	for(auto id : path){
 		frame[id] ^= error;
 	}
-
 	return;
 }
 

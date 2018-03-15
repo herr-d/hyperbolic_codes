@@ -51,7 +51,9 @@ int main(int argc, char **argv){
 	
 	// initialize error simulation
 	Wrapper simulation(error_probability);
-	simulation.run_simulation(4);
+	simulation.generate_recipe();
+	//simulation.run_simulation(4);
+	simulation.calculate_t_check(error_probability);
 
 	// run individual experiments
 

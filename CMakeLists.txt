@@ -1,6 +1,9 @@
 cmake_minimum_required (VERSION 3.10)
 project(hyperbolic_codes)
 
+set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 
 set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG")
 
