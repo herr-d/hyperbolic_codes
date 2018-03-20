@@ -20,6 +20,23 @@ using StabilizerContainer = std::vector<ParityCheck>;
 
 
 struct Code_info{
+	// basic simulation info
+	bool boot;
+	char *dir;
+	uint16_t r;
+	uint16_t s;
+	uint16_t l;
+	uint16_t t_check;
+	uint16_t t_delete;
+	size_type big_t_max;
+	double probability;
+	size_type seed0;
+	size_type seed1;
+	size_type max_num_X;
+	size_type max_num_Z;
+
+	// generate code structure
+
 	StabilizerContainer X_stabilizer, Z_stabilizer; // list of stabilizers
 	StabilizerContainer X_boundary, Z_boundary; // stabilizer boundary
 	size_type num_qubits; // total number of qubits

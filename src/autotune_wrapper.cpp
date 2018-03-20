@@ -51,7 +51,6 @@ BALL *get_boundary(int i, int j, long int big_t, int type, void *boundaries) {
 				return bdys[code.Z_boundary.size() + i];
 		}
 	}
-
 	// There is no boundary at this coordinate
 	return NULL;
 }
@@ -82,13 +81,12 @@ SET* Wrapper::infer_boundary(size_type pos, bool is_dual){
 
 
 void Wrapper::create_initial_syndrome_and_set_arrays(){
-
 	for(int i = 0; i < code.X_stabilizer.size(); ++i){
 		primal_syndrome[i] = qc_create_syndrome();
 		qc_insert_syndrome(dp_qc->qc, primal_syndrome[i]);
 
-		primal_set[i][1] = qc_create_set_adv(dp_qc->qc, PRIMAL, i, 0, 1, infer_boundary(i,true));
-		primal_set[i][0] = qc_create_set_adv(dp_qc->qc, PRIMAL, i, 0, 2, infer_boundary(i,true));
+		primal_set[i][1] = qc_create_set_adv(dp_qc->qc, PRIMAL, code.num_qubits + i, 0, 1, infer_boundary(i,true));
+		primal_set[i][0] = qc_create_set_adv(dp_qc->qc, PRIMAL, code.num_qubits + i, 0, 2, infer_boundary(i,true));
 
 
 		qc_insert_set(dp_qc->qc, primal_set[i][1]);
@@ -100,8 +98,8 @@ void Wrapper::create_initial_syndrome_and_set_arrays(){
 		dual_syndrome[i] = qc_create_syndrome();
 		qc_insert_syndrome(dp_qc->qc, dual_syndrome[i]);
 
-		dual_set[i][1] = qc_create_set_adv(dp_qc->qc, DUAL, i, 1, 1, infer_boundary(i,false));
-		dual_set[i][0] = qc_create_set_adv(dp_qc->qc, DUAL, i, 1, 2, infer_boundary(i,false));
+		dual_set[i][1] = qc_create_set_adv(dp_qc->qc, DUAL, code.num_qubits + code.X_stabilizer.size() + i, 0, 1, infer_boundary(i,false));
+		dual_set[i][0] = qc_create_set_adv(dp_qc->qc, DUAL, code.num_qubits + code.X_stabilizer.size() + i, 0, 2, infer_boundary(i,false));
 
 		qc_insert_set(dp_qc->qc, dual_set[i][1]);
 		qc_associate_syndrome(dual_set[i][1], dual_syndrome[i]);
@@ -189,12 +187,14 @@ void Wrapper::measure_X_stabilizers(size_type big_t){
 	size_type lay2 = (big_t)%2;
 	// measurement
 	for(int pos = 0; pos < code.X_stabilizer.size(); ++pos){
+		//std::cout << "measure pos: " << pos << " of " << code.X_stabilizer.size() << std::endl;
+		//std::cout << "primal_set1 bigt " << primal_set[pos][0]->big_t << " primal_set2 bigt " << primal_set[pos][1]->big_t << std::endl;
 		dp_meas_Z(dp_qc, qubit_array[pos + code.num_qubits], primal_set[pos][lay1], primal_set[pos][lay2]);
 
 		qc_unassociate_syndrome(primal_syndrome[pos]);
 		qc_associate_syndrome(primal_set[pos][lay2], primal_syndrome[pos]);
 		//create new sets and check for boundaries
-		primal_set[pos][lay1] = qc_create_set_adv(dp_qc->qc, PRIMAL, 0, 0, 2, infer_boundary(pos,false));
+		primal_set[pos][lay1] = qc_create_set_adv(dp_qc->qc, PRIMAL, code.num_qubits + pos, 0, 2, infer_boundary(pos,false));
 
 		qc_insert_set(dp_qc->qc, primal_set[pos][lay1]);
 	}
@@ -232,7 +232,7 @@ void Wrapper::measure_Z_stabilizers(size_type big_t){
 		qc_associate_syndrome(dual_set[pos][lay2], dual_syndrome[pos]);
 		
 		//create new sets
-		dual_set[pos][lay1] = qc_create_set_adv(dp_qc->qc, DUAL, 0, 0, 2, infer_boundary(pos,true));
+		dual_set[pos][lay1] = qc_create_set_adv(dp_qc->qc, DUAL, code.num_qubits + code.X_stabilizer.size() + pos, 0, 2, infer_boundary(pos,true));
 
 		qc_insert_set(dp_qc->qc, dual_set[pos][lay1]);
 	}
@@ -276,18 +276,23 @@ Wrapper::Wrapper(){
 	boundaries = NULL;
 	primal_set = NULL;
 	dual_set = NULL;
-
-	seed0 = 42;
-	seed1 = 43;
+	dp_qc = NULL;
+	copy = false;
 	distance = 10;
-	t_delete = 100; //delete after 100 steps
 	num_checks = 0;
+	probab = 0;
 }
 
 Wrapper::Wrapper(const Wrapper & a): Wrapper(){
-	//copy directory for the error model
-	dir = (char*)malloc(100*sizeof(char));
-	strcpy(dir, a.dir);
+	copy = true;
+
+	distance = a.distance;
+	num_checks = a.num_checks;
+	num_X_changes = a.num_X_changes;
+	num_Z_changes = a.num_Z_changes;
+	last_X_check = a.last_X_check;
+	last_Z_check = a.last_Z_check;
+
 
 	const size_type num_ancillae = code.Z_stabilizer.size() + code.X_stabilizer.size();
 
@@ -309,15 +314,15 @@ Wrapper::Wrapper(const Wrapper & a): Wrapper(){
 
 	//copy the PRIMAL syndrome and set arrays
 	for(int i = 0; i < code.X_stabilizer.size(); ++i){
-		primal_syndrome[i] = a.primal_syndrome[i];
-		primal_set[i][0] = a.primal_set[i][0];
-		primal_set[i][1] = a.primal_set[i][1];
+		primal_syndrome[i] = a.primal_syndrome[i]->copy;
+		primal_set[i][0] = a.primal_set[i][0]->copy;
+		primal_set[i][1] = a.primal_set[i][1]->copy;
 	}
 	//copy the DUAL syndrome and set arrays
 	for(int i = 0; i < code.Z_stabilizer.size(); ++i){	
-		dual_syndrome[i] = a.dual_syndrome[i];
-		dual_set[i][0] = a.primal_set[i][0];
-		dual_set[i][1] = a.primal_set[i][1];
+		dual_syndrome[i] = a.dual_syndrome[i]->copy;
+		dual_set[i][0] = a.dual_set[i][0]->copy;
+		dual_set[i][1] = a.dual_set[i][1]->copy;
 	}
 	//copy the boundaries
 	for(int i = 0; i < code.X_boundary.size(); ++i){
@@ -337,16 +342,16 @@ Wrapper::Wrapper(const Wrapper & a): Wrapper(){
 
 
 Wrapper::Wrapper(double error_probability) : Wrapper(){
-	dir = (char*)malloc(100*sizeof(char));
-	strcpy(dir, "../../autotune/ex/ems/");
+	probab = error_probability;
+	copy = false;
 
 	//create recipe-- whatever that does
-	recipe = qc_create_recipe_adv(RECIPE_INFINITE, code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(), 2, false);
+	recipe = qc_create_recipe_adv(RECIPE_INFINITE, code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(), 1, false);
 
 	//allocate data containers
 	allocate();
 	//init for the first time
-	init(NULL, error_probability);
+	init(NULL);
 }
 
 void Wrapper::allocate(){
@@ -355,8 +360,8 @@ void Wrapper::allocate(){
 	//allocation
 	frame = (int *)my_malloc((code.num_qubits + num_ancillae) * sizeof(int));
 	qubit_array = (QUBIT**) my_calloc(code.num_qubits + num_ancillae, sizeof(QUBIT *));
-	primal_boundary = (SET**) my_calloc(2*code.X_boundary.size(), sizeof(SET *));
-	dual_boundary = (SET**) my_calloc(2*code.Z_boundary.size(), sizeof(SET *));
+	primal_boundary = (SET**) my_calloc(code.X_boundary.size(), sizeof(SET *));
+	dual_boundary = (SET**) my_calloc(code.Z_boundary.size(), sizeof(SET *));
 
 	primal_syndrome = (SYNDROME**)my_calloc(code.X_stabilizer.size(), sizeof(SYNDROME *));
 	dual_syndrome = (SYNDROME**)my_calloc(code.Z_stabilizer.size(), sizeof(SYNDROME *));
@@ -366,9 +371,11 @@ void Wrapper::allocate(){
 
 	temporal_primal_boundary = (SET**) my_calloc(2,sizeof(SET *));
 	temporal_dual_boundary = (SET**) my_calloc(2,sizeof(SET *));
+
+	boundaries = (BALL **)my_malloc((code.X_boundary.size() + code.Z_boundary.size() + 4) * sizeof(BALL *));
 }
 
-void Wrapper::init(RECIPE_ADV *rec, double error_probability){
+void Wrapper::init(RECIPE_ADV *rec){
 	num_X_changes = 0;
 	num_Z_changes = 0;
 	last_X_check = 0;
@@ -376,13 +383,12 @@ void Wrapper::init(RECIPE_ADV *rec, double error_probability){
 	const size_type num_ancillae = code.Z_stabilizer.size() + code.X_stabilizer.size();
 	//initialization
 	dp_qc = dp_create_dp_qc_adv(42, 42,DE_HT_FACTOR*(code.num_qubits+num_ancillae)*(code.num_qubits+num_ancillae),
-		STICK_HT_FACTOR*distance*distance, error_probability, t_delete, rec, dir);
+		STICK_HT_FACTOR*distance*distance, probab, code.t_delete, rec, code.dir);
 	//create qubits
 	for (int j = 0; j < code.num_qubits+num_ancillae; ++j) {
 		qubit_array[j] = qc_create_and_insert_qubit(dp_qc->qc, j, 0, 0, QUBIT_HT_SIZE);
 	}
 
-	boundaries = (BALL **)my_malloc((code.X_boundary.size() + code.Z_boundary.size() + 4) * sizeof(BALL *));
 
 	// first primal
 	for(int i = 0; i < code.X_boundary.size(); ++i){
@@ -416,10 +422,21 @@ void Wrapper::delete_data(){
 		free(primal_boundary);
 	if(dual_boundary)
 		free(dual_boundary);
-	if(primal_syndrome)
+
+	if(primal_syndrome){
+		for(int i = 0; i < code.X_stabilizer.size(); ++i){
+			qc_free_syndrome(primal_syndrome[i]);
+		}
 		free(primal_syndrome);
-	if(dual_syndrome)
+	}
+
+	if(dual_syndrome){
+		for(int i=0; i< code.Z_stabilizer.size(); ++i){
+			qc_free_syndrome(dual_syndrome[i]);
+		}
 		free(dual_syndrome);
+	}
+	
 	if(temporal_primal_boundary)
 		free(temporal_primal_boundary);
 	if(temporal_dual_boundary)
@@ -431,6 +448,17 @@ void Wrapper::delete_data(){
 	if(dual_set)
 		free(dual_set);
 
+	if(dp_qc){
+		if(copy){
+			dp_free_dp_qc_copy(dp_qc);
+		}
+		else{
+			dp_free_dp_qc(dp_qc);
+		}
+	}
+
+
+	dp_qc = NULL;
 	frame = NULL;
 	qubit_array	= NULL;
 	primal_boundary = NULL;
@@ -445,10 +473,9 @@ void Wrapper::delete_data(){
 }
 
 Wrapper::~Wrapper(){
-	free(dir);
 	delete_data();
-	qc_free_recipe_adv(recipe);
-	dp_free_dp_qc(dp_qc);
+	if(!copy)
+		qc_free_recipe_adv(recipe);
 }
 
 
@@ -460,27 +487,93 @@ void Wrapper::generate_recipe(){
 	do{
 		measure_stabilizers(big_t++);
 	}while (qc_boot_up_adv(dp_qc->qc, recipe, 2, 12) != DONE);
-	std::cout << "SETUP IS ONLY WORKING FOR SMALL CODES" << std::endl;
+
+	delete_data();
 	return;
 }
 
 
-void Wrapper::run_simulation(size_type num_runs){
+void Wrapper::run_simulation(size_type big_t_max){
+	allocate();
+	init(recipe);
+	
+	//simulation parameters
 
+	//output basic data
+	std::cout << "p = " << dp_qc->p << "\n"
+			<< "d = " << std::min(code.Z_operator.at(0).size(), code.X_operator.at(0).size()) << "\n"
+			<< "big_t_max = " << big_t_max << "\n"
+			<< "new t_check = " << code.t_check << "\n"
+			<< "t_delete = " << code.t_delete << "\n"
+			<< "max_num_X = " << code.max_num_X << "\n"
+			<< "max_num_Z = " << code.max_num_Z << "\n"
+			<< "verbose = " << false << "\n"
+			<< "s0 = " << code.seed0 << "\n"
+			<< "s1 = " << code.seed1 << "\n"
+			<< "-s0 " << code.seed0 << " -s1 " << code.seed1 <<std::endl;
+
+	long int big_t = 0;
+
+	// Disable error tracking
+	dp_qc->qc->track = FALSE;
+	
+	// Let QC know about the boundaries
+	dp_qc->qc->get_boundary = get_boundary;
+	dp_qc->qc->boundaries = (void *)boundaries;
+	
+	while (big_t <= big_t_max && (num_X_changes < code.max_num_X || num_Z_changes < code.max_num_Z)) { //TODO does not stop after big_t_max
+		//std::cout << big_t << std::endl;
+		measure_stabilizers(big_t);
+		qc_convert_nests(dp_qc->qc, false);
+		qc_mwpm(dp_qc->qc, false);
+		correct_mts();
+
+		// not quite sure why following needs -2 rather than -1
+		qc_trim_nests(dp_qc->qc, dp_qc->qc->unfinalized_big_t - 20);
+		m_time_delete(dp_qc->qc->m_pr);
+		m_time_delete(dp_qc->qc->m_du);
+		
+		if (big_t > 0 && big_t%code.t_check == 0) {
+			test_correct();
+		}
+		
+		assert(qc->big_t == big_t+1);
+		big_t++;
+	}
 }
 
 
-void Wrapper::calculate_t_check(double error_probability){
+void Wrapper::calculate_t_check(){
 	allocate();
-	init(recipe,error_probability);
+	init(recipe);
 	dp_qc->qc->track = false;
 	dp_qc->qc->get_boundary = get_boundary;
 	
 	size_type big_t = 0;
-	size_type t_check = 1;
+	size_type t_check = code.t_check;
 	size_type t_check_scale = 10;
-	size_type boot_num_X = 50;
-	size_type boot_num_Z = 50;
+	size_type boot_num_X = 15;
+	size_type boot_num_Z = 15;
+
+
+	// basic data
+	std::cout << "p = " << dp_qc->p << "\n"
+		<< "d = " << std::min(code.Z_operator.at(0).size(), code.X_operator.at(0).size()) << "\n"
+		<< "big_t_max = " << code.big_t_max << "\n"
+		<< "t_check = " << code.t_check << "\n"
+		<< "t_delete = " << code.t_delete << "\n"
+		<< "max_num_X = " << code.max_num_X << "\n"
+		<< "max_num_Z = " << code.max_num_Z << "\n"
+		<< "boot = " << true << "\n"
+		<< "boot_num_X = " << boot_num_X << "\n"
+		<< "boot_num_Z = " << boot_num_Z << "\n"
+		<< "t_check_scale = " << t_check_scale << "\n"
+		<< "verbose = " << false << "\n"
+		<< "s0 = " << code.seed0 << "\n"
+		<< "s1 = " << code.seed1 << "\n"
+		<< "-s0 " << code.seed0 << " -s1 " << code.seed1 <<std::endl;
+
+
 
 	while (true) {
 		measure_stabilizers(big_t);
@@ -507,20 +600,15 @@ void Wrapper::calculate_t_check(double error_probability){
 				int changes = (num_X_changes >= num_Z_changes) ? num_X_changes : num_Z_changes; 
 				std::cout << "Calculating tcheck: " << t_check << " "  << num_checks << " " << changes << " " << t_check_scale;
 
-				t_check = t_check * num_checks / changes / t_check_scale;
+				code.t_check = t_check * num_checks / changes / t_check_scale;
 
-				if (t_check < 1) { 
-					t_check = 1;
+				if (code.t_check < 1) { 
+					code.t_check = 1;
 				}
 				
 				break;
 			}
 		}
-
-		// If we are verbose, then print out the current SC_DP_QC statistics
-		#ifdef DEBUG
-			print_stats();
-		#endif
 
 		// Ensure that the qc has been properly advanced in big_t
 		assert(dp_qc->qc->big_t == big_t+1);
@@ -530,7 +618,6 @@ void Wrapper::calculate_t_check(double error_probability){
 	// Free the sc_dp_qc now that the t_check has been calculated
 	delete_data();
 	qc_reset_recipe_adv(recipe);
-	std::cout << "uiae " << std::endl;
 }
 
 void Wrapper::reset_recipe(){
@@ -541,9 +628,7 @@ void Wrapper::reset_recipe(){
 void Wrapper::test_correct() {
 	int count;
 	long big_t = 0;
-	//printf("Test correct\n");
 	Wrapper second(*this);
-
 
 	// Enable perfect gates and perform a perfect round of stabilizer
 	// measurements, followed by matching, then correction.
@@ -552,13 +637,12 @@ void Wrapper::test_correct() {
 	second.dp_qc->qc->m_pr->undo_flag = true;
 	second.dp_qc->qc->m_du->undo_flag = true;
 
-	second.measure_stabilizers(big_t);
+	second.measure_stabilizers(second.dp_qc->qc->big_t);
 
 	qc_finalize_nests(second.dp_qc->qc, second.dp_qc->qc->big_t);
 	qc_convert_nests(second.dp_qc->qc, true);
 
 	qc_mwpm(second.dp_qc->qc, true);
-
 	second.correct_mts();
 
 	// Track how many test corrects have been performed for this simulation
@@ -573,7 +657,6 @@ void Wrapper::test_correct() {
 	// the boundary has occured.
 
 	// calculate the parity along a path that defines a logical qubit
-
 	for(auto logical_qubit : code.Z_operator){
 		count = 0;
 		for(auto id : logical_qubit){
@@ -611,12 +694,13 @@ void Wrapper::test_correct() {
 
 	dp_qc->qc->m_pr->undo_flag = false;
 	dp_qc->qc->m_du->undo_flag = false;
-	//printf("End test correct\n");
 }
 
 
 void Wrapper::print_stats() {
-	std::cout << "TODO" << std::endl;
+	std::cout << ">>> " << 0 << " | " << dp_qc->qc->big_t << " | Last: "
+				<< last_X_check << " " << last_Z_check << " | Checks: " << num_checks << " " << num_checks
+				<< " | Changes: " << num_X_changes << " " << num_Z_changes << std::endl;
 }
 
 
@@ -641,6 +725,7 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 		std::swap(i1,i2);
 		std::swap(j1,j2);
 	}
+	std::cout << "needs a change" << std::endl;
 	
 	// now resolve the boundary
 	if(j2 < 0){

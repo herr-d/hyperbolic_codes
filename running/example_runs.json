@@ -1,0 +1,22 @@
+[
+    {
+        "executable": "main",
+        "ems": "../../autotune/ex/ems",
+        "folder": "test/{--d}/{--p}/{--t_delete}",
+        "filename": "out_raw",
+        "queue": "ashley",
+        "wallhours": "200",
+        "options": {
+            "--d": "3",
+	    "--big_t_max" : "3000",
+            "--p": [
+                "0.0001", "0.0002", "0.0005",
+                "0.001", "0.002", "0.005",
+                "0.01", "0.02", "0.05"
+            ],
+            "--t_delete": "100",
+            "--boot": "1",
+            "--ems": "./ems/"
+        }
+    }
+]

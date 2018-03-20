@@ -19,17 +19,16 @@ extern Code_info code;
 class Wrapper{
 private:
 	char *dir;
+	bool copy; // is it a copy of anothe element
 
 	const int num_padding = 2; //total number of steps that need to be added due to scheduling conflicts: worst case estimate;
-	int seed0;
-	int seed1;
 	int distance;
-	int t_delete; //delete after 100 steps
 	int num_checks;
 	int num_X_changes;
 	int num_Z_changes;
 	int last_X_check;
 	int last_Z_check;
+	double probab;
 
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// Varibles needed for Hyperbolic codes
@@ -118,7 +117,7 @@ private:
 	void measure_X_stabilizers(size_type big_t);
 	void measure_Z_stabilizers(size_type big_t);
 	void allocate();
-	void init(RECIPE_ADV *rec, double error_probability);
+	void init(RECIPE_ADV *rec);
 
 	/*
 	 * Given a stabilizer, is it on the boundary?
@@ -158,7 +157,7 @@ public:
 	 *
 	 *
 	*/
-	void calculate_t_check(double error_probability);
+	void calculate_t_check();
 
 	/*
 	 *
