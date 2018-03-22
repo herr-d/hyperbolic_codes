@@ -791,9 +791,9 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
  */
 void Wrapper::process_aug_edges(MATCHING *m) {
 	AUG_EDGE *ae;
-
 	ae = m_get_aug_edge(m);
 	while (ae != NULL) {
+		std::cout << "never" << std::endl;
 		process_aug_edge(ae);
 		m_delete_aug_edge(ae);
 		ae = m_get_aug_edge(m);
