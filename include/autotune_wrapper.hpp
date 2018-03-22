@@ -18,7 +18,6 @@ extern Code_info code;
 */
 class Wrapper{
 private:
-	char *dir;
 	bool copy; // is it a copy of anothe element
 
 	const int num_padding = 2; //total number of steps that need to be added due to scheduling conflicts: worst case estimate;

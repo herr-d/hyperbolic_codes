@@ -2,6 +2,9 @@
 #include <generate_code.hpp>
 #include <path_finding.hpp>
 
+
+
+
 size_type CSSCodes::get_number_qubits(){
 	return num_qubits_;
 }
@@ -356,6 +359,8 @@ void Hyperbolic::generate_rough_edges(short number){
 	StabilizerContainer X_boundary;
 	StabilizerContainer Z_boundary;
 
+	size_type shift = 0; // rotate the rough/smooth edges around the boundary
+
 	number = 2* number;
 	// add loop
 	std::vector<size_type> loop;
@@ -371,7 +376,7 @@ void Hyperbolic::generate_rough_edges(short number){
 			X_boundary.push_back(ParityCheck());
 			for(int j=0; j < loop.size()/number; ++j){
 				//two vertices
-				size_type v1 = (i* loop.size()/number + j);
+				size_type v1 = ((i* loop.size()/number + j) + shift)%loop.size();
 				size_type v2 = (v1 + 1)%loop.size();
 				// remove qubits not needed
 				--num_qubits_;
@@ -381,7 +386,7 @@ void Hyperbolic::generate_rough_edges(short number){
 			// remove nodes with no neighbors. Nodes with one neighbor will be ignored when exporting
 			// but are still needed to determine the qubit ids
 			for(int j=0; j < loop.size()/number; ++j){
-				size_type v1 = i* loop.size()/number + j;
+				size_type v1 = (i* loop.size()/number + j + shift)%loop.size();
 				if(graph_.at(loop.at(v1)).size() == 0 ){
 
 					graph_.erase(loop.at(v1));
@@ -391,7 +396,7 @@ void Hyperbolic::generate_rough_edges(short number){
 			}
 			// add neighbors of vertices with single neighbors to the boundary stabilizers
 			for(int j=0; j < loop.size()/number; ++j){
-				size_type v1 = (i* loop.size()/number + j);
+				size_type v1 = ((i* loop.size()/number + j) + shift) % loop.size();
 				if(graph_[loop.at(v1)].size() == 1 ){
 					X_boundary.back().insert(*graph_[loop.at(v1)].begin());
 				}
@@ -400,7 +405,7 @@ void Hyperbolic::generate_rough_edges(short number){
 		else{
 			Z_boundary.push_back(ParityCheck());
 			for(int j=0; j < loop.size()/number; ++j){
-				size_type v1 = i* loop.size()/number + j;
+				size_type v1 = (i* loop.size()/number + j + shift) % loop.size();
 				size_type v2 = (v1 + 1)%loop.size();
 				// insert boundary Z stabilizer
 				for(uint i = 0; i<Z_stabilizers_.size(); ++i){
