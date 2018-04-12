@@ -21,13 +21,13 @@ extern Code_info code;
 /*
  * Wrapper class for the autotune library.
  * This wrapper is a modification of ex1 from the Autotune library.
- * It should hopefully always work, as long as the Code_info container code is properly initialized.
+ * It should always work, as long as the Code_info container code is properly initialized.
  * Any changes throughout this wrapper class should be unnecessary.
  *
  * The user should only need to execute the following public functions to be able to run the threshold calculation:
  * Constructor: Wrapper simulation(code.probability);
  * generate_recipe();
- * calculate_t_checko(); //optional
+ * calculate_t_check(); //optional
  * run_simulation(code.big_t_max);
  *
 */

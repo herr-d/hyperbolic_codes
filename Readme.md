@@ -12,6 +12,17 @@ The code in this repository can be used to generate patches of hyperbolic codes.
 
 ## Wrapper for autotune
 
+The wrapper class for autotune can be found in `include/autotune_wrapper.hpp` and the modified implementation from autotune's ex1 can be found in `src/autotune_wrapper.cpp`.
+This wrapper should always work as long as an instance of `Code_info code` has been properly initialized (See the `main.cpp` file for an example implementation).
+The user should only need to execute the following public functions of the class:
+ - Constructor
+ - `generate_recipe();`
+ - `calculate_t_check(); //optional`
+ - `run_simulation(big_t_max)`
+
+The wrapper will automatically access the global `Code_info code` instance to obtain all necessary information for the simulation.
+
+
 
 # Installation and usage
 ## Building the library
