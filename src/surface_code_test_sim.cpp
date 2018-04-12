@@ -38,7 +38,7 @@ void process_arguments(int argc, char **argv){
 	code.r = 3;
 	code.s = 4;
 	code.l = 4;
-	code.t_check = 10;
+	code.t_check = 1;
 	code.t_delete = 100;
 	code.big_t_max = 20000;
 	code.probability = 0.001;
@@ -166,6 +166,7 @@ int main(int argc, char **argv){
 	process_arguments(argc, argv);
 
 	generate_surface_code();
+	printout_code();
 	// initialize error simulation
 	Wrapper simulation(code.probability);
 	simulation.generate_recipe();

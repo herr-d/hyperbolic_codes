@@ -10,8 +10,6 @@ Code_info code;
 
 
 void write_usage(char *arg0){
-
-
 	std::cout << "\nUsage:\n" << "\t" << arg0 << "\t[--OPTIONS]\n\n" << std::endl;
 	std::cout << "Options:\n";
 	std::cout << "\t--layers     \tnumber of layers and thus the size of the code\n";
@@ -59,7 +57,7 @@ void process_arguments(int argc, char **argv){
 	code.boot = false;
 	code.r = 4;
 	code.s = 4;
-	code.l = 4;
+	code.l = 1;
 	code.t_check = 10;
 	code.t_delete = 100;
 	code.big_t_max = 20000;
@@ -188,6 +186,7 @@ int main(int argc, char **argv){
 	process_arguments(argc, argv);
 
 	generate_hyperbolic_code(code.r,code.s,code.l);
+	printout_code();
 
 	// initialize error simulation
 	Wrapper simulation(code.probability);

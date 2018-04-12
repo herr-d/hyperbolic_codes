@@ -151,10 +151,28 @@ size_type CSSCodes::add_vertex(){
 	return id;
 }
 
+void CSSCodes::merge_vertices(const size_type& qubit1, const size_type& qubit2){
+	//merge all neighbors to smaller node
+	size_type min = std::min(qubit1,qubit2);
+	size_type max = std::max(qubit1,qubit2);
+
+	for(auto n : graph_.at(max)){
+		graph_.at(min).insert(n);
+		graph_.at(n).insert(min);
+		//remove the edge
+		remove_edge(max, n);
+	}
+}
+
 void CSSCodes::add_edge(const size_type& qubit1, const size_type& qubit2){
 	graph_[qubit1].insert(qubit2);
 	graph_[qubit2].insert(qubit1);
 	++num_qubits_;
+}
+
+void CSSCodes::remove_edge(const size_type& qubit1, const size_type& qubit2){
+	graph_[qubit1].erase(qubit2);
+	graph_[qubit2].erase(qubit1);
 }
 
 void CSSCodes::add_face(ParityCheck qubits){
@@ -366,6 +384,10 @@ void Hyperbolic::generate_rough_edges(short number){
 	std::vector<size_type> loop;
 	generate_frontier_loop(loop);
 
+	printout_graph();	
+
+
+
 	if(loop.size()%number != 0){
 		std::cerr << "Cannot partition into equal sizes for rough edges. Last partition will be smaller." << std::endl;
 	}
@@ -380,22 +402,18 @@ void Hyperbolic::generate_rough_edges(short number){
 				size_type v2 = (v1 + 1)%loop.size();
 				// remove qubits not needed
 				--num_qubits_;
-				graph_[loop.at(v1)].erase(loop.at(v2));
-				graph_[loop.at(v2)].erase(loop.at(v1));				
+				remove_edge(loop.at(v2),loop.at(v1));
 			}
-			// remove nodes with no neighbors. Nodes with one neighbor will be ignored when exporting
+			/*// remove nodes with no neighbors. Nodes with one neighbor will be ignored when exporting
 			// but are still needed to determine the qubit ids
 			for(int j=0; j < loop.size()/number; ++j){
 				size_type v1 = (i* loop.size()/number + j + shift)%loop.size();
 				if(graph_.at(loop.at(v1)).size() == 0 ){
-
 					graph_.erase(loop.at(v1));
-
-
 				}
-			}
+			}*/
 			// add neighbors of vertices with single neighbors to the boundary stabilizers
-			for(int j=0; j < loop.size()/number; ++j){
+			for(int j=0; j <= loop.size()/number; ++j){
 				size_type v1 = ((i* loop.size()/number + j) + shift) % loop.size();
 				if(graph_[loop.at(v1)].size() == 1 ){
 					X_boundary.back().insert(*graph_[loop.at(v1)].begin());
@@ -404,7 +422,7 @@ void Hyperbolic::generate_rough_edges(short number){
 		}
 		else{
 			Z_boundary.push_back(ParityCheck());
-			for(int j=0; j < loop.size()/number; ++j){
+			for(int j=0; j <= loop.size()/number; ++j){
 				size_type v1 = (i* loop.size()/number + j + shift) % loop.size();
 				size_type v2 = (v1 + 1)%loop.size();
 				// insert boundary Z stabilizer
@@ -422,13 +440,38 @@ void Hyperbolic::generate_rough_edges(short number){
 	// Z stabilizers do not get deleted and thus do not need to be modified
 	// boundaries
 	std::set<size_type> deleted_vector;
-
+	
 	for(auto i : graph_){
 		if(i.second.size() == 0){
 			deleted_vector.insert(i.first);
 		}
 	}
 
+
+	//TODO
+
+	for(const auto& bound : Z_boundary){
+		std::vector<size_type> tmp;
+		for(const auto& stabil : bound){
+			for(auto node : stabil){
+				td::cout << "bound "<< eighbor << std::endl;
+				for(auto stabil :Z_stabilizer)
+				if(Z_stabilizers.
+					graph_.at(neighbor).size() == 1){
+					tmp.push_back(neighbor);
+				}
+			}
+		}
+		std::cout << std::endl;
+		if (tmp.size()>1){
+			assert(tmp.size() == 2);
+			merge_vertices(tmp.at(0),tmp.at(1));
+			deleted_vector.insert(tmp.at(1));
+		}
+	}
+
+
+	exit(0);
 	//only rarely executed... but still expensive
 	for(auto & stabilizer : Z_stabilizers_){
 		for(auto deleted : deleted_vector)
@@ -442,20 +485,28 @@ void Hyperbolic::generate_rough_edges(short number){
 			deleted_vector.insert(i.first);
 		}
 	}
+
 	// since not all vertices are used in the output, the ids need to be adjusted
 	// probably not needed but better safe than sorry
+
+
 	for(auto & edge : X_boundary){
 		ParityCheck new_edge;
 		for(auto id : edge){
+			size_type count = 0;
 			for(auto deleted : deleted_vector){
-				if(id > deleted){
-					--id;
+				if(id >= deleted){
+					++count;
 				}
 			}
-			new_edge.insert(id);
+			new_edge.insert(id-count);
 		}
 		std::swap(new_edge, edge);
 	}
+
+	// remove border artifacts, where one stabilizer has more than one final qubit
+	// these lead to errors in the code
+
 
 
 	std::swap(X_bound_result, X_boundary);

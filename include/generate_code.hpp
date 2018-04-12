@@ -5,8 +5,9 @@
 #include <autotune_wrapper.hpp>
 
 /* Parent class for Hyperbolic codes
- * Any CSS code can be set up manually using
- * functions defined. 
+ * Stabilizer codes are represented by a lattice whose X parity checks are represented by vertices.
+ * Z-parity-checks are defined by faces and all edges represent one qubit.
+ *
  * MORE INTERESTING: Derived class
 */
 class CSSCodes
@@ -65,6 +66,11 @@ public:
 	 *		 id of vertex1
 	 * [out]: no output
 	*/
+
+	void remove_edge(const size_type& qubit1, const size_type& qubit2);
+	void merge_vertices(const size_type& qubit1, const size_type& qubit2);
+
+
 	void add_edge(const size_type& qubit1, const size_type& qubit2);
 
 	/* adds a face to the graph
@@ -74,6 +80,8 @@ public:
 	void add_face(ParityCheck qubits);
 
 	/* generates the physical qubits, and stabilizers and writes that information in the code reference
+	 * This is a translation from the graph representation where qubits are encoded on edges to a graph
+	 * representation where qubits are given by vertices.
 	 * [in]: container of the type code
 	 * [out]: no output
 	*/
@@ -81,6 +89,12 @@ public:
 };
 
 
+
+/*
+ * This class grows Hyperbolic codes with shaeffli symbols {r_,s_} by adding size_ layers to an initial face.
+ * It should be noted that the number of qubits grows exponentially in Hyperbolic codes with respect to the number of layers.
+ * Furthermore currently no method is provided that determines the number of rough edges that the code should have.
+ */
 class Hyperbolic : public CSSCodes{
 private:
 	size_type r_; //number of face-neighbors
@@ -88,24 +102,34 @@ private:
 	size_type size_; //how many layers will be created
 
 	/* 
-	 * [in]: 
+	 * Creates new vertices and adds them as neighbors until the given vertex has s_ neighbors
+	 * [in]:
+	 		frontier: Data structure containing all vertices on the boundary
+	 		vertex: id that determines whose neighbors are created
 	 * [out]:
 	*/
 	void add_vertex_neighbors(Graph& frontier, size_type vertex);
 	
 	/*
+	 * Given an edge along the boundary create a new face
 	 * [in]: 
+	 	 	frontier: Data structure containing all vertices on the boundary
+	 		vertex1: first node that defines the edge
+	 		vertex2: second node that defines the edge
 	 * [out]:
 	*/
 	void gen_faces_from_edge(Graph &frontier, size_type vertex1, size_type vertex2);
 	
-	/* 
+	/*
+	 * Given a vertex on the boundary, it determines how many faces need to be generated.
 	 * [in]: 
+	 	 	frontier: Data structure containing all vertices on the boundary
+	 		vertex: node that needs faces
 	 * [out]:
 	*/
 	void gen_faces_from_vertex(Graph& frontier, size_type vertex);
 	
-	/* Infers which vertices are not fully connected yet and adds them to the frontiers reference
+	/* Infers which vertices are not fully connected, and adds them to the frontiers reference
 	 * [in]: reference to a graph object
 	 * [out]: no return value
 	*/
