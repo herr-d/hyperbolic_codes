@@ -51,4 +51,15 @@ void printout_code(){
 		}
 		std::cout << std::endl;
 	}
+	std::cout << "\n######## X boundary qubits ######## size:" << code.XBoundaryQubits.size() << std::endl;
+	for(auto qubit : code.XBoundaryQubits){
+		std::cout << qubit << " ";
+		}
+	std::cout << std::endl;
+	std::cout << "\n######## Z boundary qubits ######## size:" << code.ZBoundaryQubits.size() << std::endl;
+	for(auto qubit : code.ZBoundaryQubits){
+		std::cout << qubit << " ";
+		}
+	std::cout << "\n" << std::endl;
+
 }

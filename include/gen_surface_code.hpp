@@ -32,8 +32,8 @@ void generate_surface_code(){
 	ParityCheck Zdata_two;
 
 	//add stabilizers
-	for(int x = 0; x < 2*code.r -1; ++x){
-		for(int y = 0; y < 2*code.r -1; ++y){
+	for(int y = 0; y < 2*code.r -1; ++y){
+		for(int x = 0; x < 2*code.r -1; ++x){
 			if((x%2 == 0 && y%2 == 0) || x%2 == 1 && y%2 ==1){ //data qubit
 				if(x == 0){
 					code.XBoundaryQubits.insert(get_data_qubit_id(x,y));
@@ -51,13 +51,16 @@ void generate_surface_code(){
 			else if(x%2 == 1 && y%2 == 0){ // X stabilizer
 				ParityCheck tmp;
 	
-				for(int dx=-1; dx <=1; dx=dx+2)
-					if(x+dx >= 0 && x+dx < 2*code.r - 1)
+				for(int dx=-1; dx <=1; dx=dx+2){
+					if(x+dx >= 0 && x+dx < 2*code.r - 1){
 						tmp.insert(get_data_qubit_id(x+dx,y));
-
-					for(int dy=-1; dy <=1; dy=dy+2)
-						if(y+dy >= 0 && y+dy < 2*code.r - 1)
-							tmp.insert(get_data_qubit_id(x,y+dy));
+					}
+				}
+				for(int dy=-1; dy <=1; dy=dy+2){
+					if(y+dy >= 0 && y+dy < 2*code.r - 1){
+						tmp.insert(get_data_qubit_id(x,y+dy));
+					}
+				}
 
 				code.X_stabilizer.push_back(tmp);
 				if(x == 1){
@@ -88,11 +91,6 @@ void generate_surface_code(){
 			}
 		}
 	}
-
-	//add test
-	code.X_stabilizer.back().insert(code.num_qubits);
-	++code.num_qubits;
-
 
 
 	code.X_boundary.push_back(Xbound_one);

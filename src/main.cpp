@@ -67,7 +67,7 @@ void process_arguments(int argc, char **argv){
 	code.max_num_X = 5000;
 	code.max_num_Z = 5000;
 	code.dir = (char*)malloc(100*sizeof(char));
-	strcpy(code.dir, "../../autotune/ex/ems/");
+	strcpy(code.dir, EMS_DIR);
 
 	bool boot = code.boot;
 	uint16_t r = code.r;
@@ -186,7 +186,7 @@ int main(int argc, char **argv){
 	process_arguments(argc, argv);
 
 	generate_hyperbolic_code(code.r,code.s,code.l);
-	printout_code();
+	//printout_code();
 
 	// initialize error simulation
 	Wrapper simulation(code.probability);

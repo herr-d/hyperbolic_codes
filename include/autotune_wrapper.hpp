@@ -165,6 +165,9 @@ private:
 	*/
 	void perform_X_stabilizers();
 
+
+	void apply_cnots();
+	
 	/*
 	 * Adds the measurement of all X stabilizers of this time step.
 	 * [in]:

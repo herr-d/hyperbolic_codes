@@ -1,5 +1,17 @@
 #include <gtest/gtest.h>
+
+#define private public
+
+
 #include <generate_code.hpp>
+#include <path_finding.hpp>
+#include <autotune_wrapper.hpp>
+#include <path_finding.hpp>
+#include <gen_surface_code.hpp>
+
+
+Code_info code;
+
 
 TEST(Hyperbolic, Creation_Surface){
 	//surface code
@@ -91,7 +103,12 @@ TEST(Hyperbolic, generate_rough_edges){
 }
 
 
-int main(int argc, char* argv[]){
+int main(int argc, char* argv[])
+{
+	code.dir = (char*)malloc(100*sizeof(char));
+	strcpy(code.dir, EMS_DIR);
+
+
 	testing::InitGoogleTest(&argc, argv);
 	return RUN_ALL_TESTS();
 }

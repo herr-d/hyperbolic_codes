@@ -14,9 +14,7 @@ void write_usage(char *arg0){
 
 	std::cout << "\nUsage:\n" << "\t" << arg0 << "\t[--OPTIONS]\n\n" << std::endl;
 	std::cout << "Options:\n";
-	std::cout << "\t--layers     \tnumber of layers and thus the size of the code\n";
-	std::cout << "\t--k          \tnumber of neighbors each surface has\n";
-	std::cout << "\t--r          \tnumber of neighbors each vertex has\n";
+	std::cout << "\t--distance     \tdistance of the surface code\n";
 	std::cout << "\t--t_check    \tThe number of timesteps between each round of perfect stabilizer measurements\n";
 	std::cout << "\t--big_t_max  \tThe maximum value of big_t\n";
 	std::cout << "\t--probability\tThe probability of a random error\n";
@@ -25,8 +23,7 @@ void write_usage(char *arg0){
 	std::cout << "\t--seed1      \tThe second random seed\n";
 	std::cout << "\t--help       \tPrints this help message\n";
 
-	std::cout << "\nStandard parameters:\n\t" <<  arg0 << " --layers " << code.l << " -k " << code.s
-	<< " -r " << code.r << " --t_check " << code.t_check << " --big_t_max " << code.big_t_max
+	std::cout << "\nStandard parameters:\n\t" <<  arg0 << " --distance " << code.r << " --t_check " << code.t_check << " --big_t_max " << code.big_t_max
 	<< " --probability " << code.probability << " --seed0 " << code.seed0 << " --seed1 " << code.seed1 << "\n" << std::endl;
 }
 
@@ -47,7 +44,7 @@ void process_arguments(int argc, char **argv){
 	code.max_num_X = 5000;
 	code.max_num_Z = 5000;
 	code.dir = (char*)malloc(100*sizeof(char));
-	strcpy(code.dir, "../../autotune/ex/ems/");
+	strcpy(code.dir, EMS_DIR);
 
 	bool boot = code.boot;
 	uint16_t r = code.r;
@@ -65,7 +62,7 @@ void process_arguments(int argc, char **argv){
 	while(1){
 		struct option long_options[] = 
 		{
-			{"layers", required_argument, 0, 'l'},
+			{"distance", required_argument, 0, 'l'},
 			{"k", required_argument, 0, 'k'},
 			{"r", required_argument, 0, 'r'},
 			{"t_check", required_argument, 0, 't'},
@@ -146,7 +143,7 @@ void process_arguments(int argc, char **argv){
 	}
 
 	code.boot = boot;
-	code.r = r;
+	code.r = l;
 	code.s = s;
 	code.l = l;
 	code.t_check = t_check;

@@ -3,8 +3,8 @@
 
 
 void Dijkstra(StabilizerContainer stabilizer, ParityCheck& result_container, size_type num_qubits){
-	std::vector<size_type> dist(num_qubits+1, num_qubits);
-	std::vector<size_type> prev(num_qubits+1, num_qubits);
+	std::vector<size_type> dist(num_qubits, num_qubits+1);
+	std::vector<size_type> prev(num_qubits, num_qubits+1);
 	assert(result_container.size() == 2);
 
 	size_type begin, end;
@@ -61,7 +61,7 @@ void Dijkstra(StabilizerContainer stabilizer, ParityCheck& result_container, siz
 	//generate path by tracking backwards
 	assert(dist.at(end) < num_qubits); // checks if the end was found in the graph
 
-	
+
 	size_type cur_element = end;
 	ParityCheck path_qubits;
 	path_qubits.insert(cur_element);
@@ -76,8 +76,8 @@ void Dijkstra(StabilizerContainer stabilizer, ParityCheck& result_container, siz
 
 // Path finding between two stabilizers. Data qubits along the path are returned.
 void DataQubits(StabilizerContainer& stabilizers, size_type begin, ParityCheck& end, ParityCheck& result_container){
-	std::vector<size_type> dist(stabilizers.size()+1, stabilizers.size());
-	std::vector<size_type> prev(stabilizers.size()+1, stabilizers.size());
+	std::vector<size_type> dist(stabilizers.size(), stabilizers.size()+1);
+	std::vector<size_type> prev(stabilizers.size(), stabilizers.size()+1);
 
 	std::unordered_set<size_type> open_set;
 
@@ -97,6 +97,10 @@ void DataQubits(StabilizerContainer& stabilizers, size_type begin, ParityCheck& 
 				min_element = element;
 			}
 		}
+		if(min_element == stabilizers.size()){
+			std::cout << "no path to goal!" << std::endl;
+			throw 1;
+		}
 
 		open_set.erase(min_element);
 
@@ -107,13 +111,15 @@ void DataQubits(StabilizerContainer& stabilizers, size_type begin, ParityCheck& 
 		for(auto i : open_set){
 			for(auto s : stabilizers.at(min_element)){
 				if(stabilizers.at(i).find(s) != stabilizers.at(i).end()){
-					dist.at(s) = cur_dist + 1;
-					prev.at(s) = min_element;
+					dist.at(i) = cur_dist + 1;
+					prev.at(i) = min_element;
 				}
 			}
 
 		}
 	}
+
+
 
 	size_type cur_element;
 	for(auto i : end){

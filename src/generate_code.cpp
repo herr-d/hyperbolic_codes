@@ -449,13 +449,12 @@ void Hyperbolic::generate_rough_edges(short number){
 
 
 	//TODO
-
+	/*
 	for(const auto& bound : Z_boundary){
 		std::vector<size_type> tmp;
-		for(const auto& stabil : bound){
+		for(const auto& stabil : Z_stabilizers.at(bound)){
 			for(auto node : stabil){
-				td::cout << "bound "<< eighbor << std::endl;
-				for(auto stabil :Z_stabilizer)
+				std::cout << "bound "<< eighbor << std::endl;
 				if(Z_stabilizers.
 					graph_.at(neighbor).size() == 1){
 					tmp.push_back(neighbor);
@@ -471,7 +470,8 @@ void Hyperbolic::generate_rough_edges(short number){
 	}
 
 
-	exit(0);
+	//exit(0);
+	*/
 	//only rarely executed... but still expensive
 	for(auto & stabilizer : Z_stabilizers_){
 		for(auto deleted : deleted_vector)
