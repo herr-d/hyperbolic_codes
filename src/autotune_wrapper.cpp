@@ -197,71 +197,12 @@ void Wrapper::create_initial_syndrome_and_set_arrays(){
 	}
 }
 
-void Wrapper::apply_cnots(){
-	std::vector<int> X_progress(code.X_stabilizer.size(),0);
-	std::vector<int> Z_progress(code.Z_stabilizer.size(),0);
-	bool finished = false;
-	int timestep;
-	while(finished == false){
-		timestep = qubit_array[0]->t;
-		finished=true;
-
-		for (int pos = 0; pos < code.X_stabilizer.size(); ++pos){
-			if(X_progress.at(pos) < code.X_stabilizer.at(pos).size()){
-				finished = false;
-				//size_type qubit = code.X_stabilizer.at(pos).at(X_progress.at(pos));
-				ParityCheck::iterator it = code.X_stabilizer.at(pos).begin();
-				if(X_progress.at(pos) != 0)
-					std::advance(it, X_progress.at(pos));
-				size_type qubit = *it;
-				if(qubit_array[qubit]->t == qubit_array[code.num_qubits + pos]->t){
-					dp_cnot(dp_qc, qubit_array[code.num_qubits + pos], qubit_array[qubit]);
-					X_progress.at(pos) += 1;
-				}
-			}
-		}
-
-		for (int pos = 0; pos < code.Z_stabilizer.size(); ++pos){
-			if(X_progress.at(pos) < code.Z_stabilizer.at(pos).size()){
-				finished = false;
-				//size_type qubit = code.Z_stabilizer.at(pos).at(Z_progress.at(pos));
-				ParityCheck::iterator it = code.Z_stabilizer.at(pos).begin();
-				if(Z_progress.at(pos) != 0)
-					std::advance(it, Z_progress.at(pos));
-				size_type qubit = *it;
-				if(qubit_array[qubit]->t == qubit_array[code.num_qubits + code.X_stabilizer.size() + pos]->t){
-					dp_cnot(dp_qc, qubit_array[qubit], qubit_array[pos + code.num_qubits + code.X_stabilizer.size()]);
-					X_progress.at(pos) += 1;
-				}
-			}
-		}
-
-		// Bring all qubits to the same time by applying identities
-		for(int i=0; i < code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(); ++i){
-			if(qubit_array[i]->t <= timestep){
-				dp_iden_cnot(dp_qc,qubit_array[i]);
-			}
-		}
-	} 
-}
 
 void Wrapper::init_X_stabilizers(){
 	// init all X stabilizer qubits
 	for(int i = code.num_qubits; i < code.num_qubits + code.X_stabilizer.size(); ++i){
-		
-		//std::cout << "init + Hadamard on: " << i << std::endl;
-		//autotune_coords_to_real(i,0,0);
-		//std::cout << std::endl;
-
 		dp_init_Z(dp_qc,qubit_array[i]); //first initialize in Z
 		dp_H(dp_qc,qubit_array[i]); // apply a Hadamard 
-
-		// for worst case each ancilla qubit needs to wait 2 steps
-		// each qubit has 2 X and 2 Z-stabilizers, due to the hadamard operation they are shifted by 1
-		// thus 1 step definitely works, for a clash one of the choices also works thus the worst case has a delay of 2
-		/*for(int j=0; j < num_padding; ++j){
-			dp_iden_cnot(dp_qc,qubit_array[i]);
-		}*/
 	}
 }
 
@@ -269,82 +210,61 @@ void Wrapper::init_X_stabilizers(){
 void Wrapper::init_Z_stabilizers(){
 	//init all Z stabilizer qubits
 	for(int i = code.num_qubits + code.X_stabilizer.size(); i < code.num_qubits + code.X_stabilizer.size() + code.Z_stabilizer.size(); ++i){
-		
-		//std::cout << "init + dead H on: " << i << std::endl;
-		//autotune_coords_to_real(i,0,0);
-		//std::cout << std::endl;
-
 		dp_dead_H(dp_qc,qubit_array[i]); // apply a dead Hadamard 
 		dp_init_Z(dp_qc,qubit_array[i]); //first initialize in Z
-
-		// for worst case each ancilla qubit needs to wait 2 steps
-		// each qubit has 2 X and 2 Z-stabilizers, due to the hadamard operation they are shifted by 1
-		// thus 1 step definitely works, for a clash one of the choices also works thus the worst case has a delay of 2
-		/*for(int j=0; j < num_padding; ++j){
-			dp_iden_cnot(dp_qc,qubit_array[i]);
-		}*/
 	}
 }
 
 void Wrapper::data_error_during_init(){
-	// all data qubits need to wait 1 time step due to initialization
-	// only 1 means a shifted initialization for X and Z stabilizers, such that the data qubits are best distributed
 	for (int i = 0; i < code.num_qubits; ++i){
-		
-		//std::cout << "identity + dead H + dead padding on: " << i << std::endl;;
-		//autotune_coords_to_real(i,0,0);
-		//std::cout << std::endl;
-		
 		dp_iden_init_Z(dp_qc, qubit_array[i]);
 		dp_dead_H(dp_qc, qubit_array[i]);
-
-		/*for(int j=0; j < num_padding; ++j){
-			dp_dead_cnot(dp_qc,qubit_array[i]);
-		}*/
 	}	
 }
 
 
+void Wrapper::apply_cnots(){
+	StabilizerContainer X_queue(code.X_stabilizer);
+	StabilizerContainer Z_queue(code.Z_stabilizer);
+	bool finished = false;
+	int timestep;
+	while(finished==false){
+		timestep = qubit_array[0]->t;
+		finished = true;
 
-void Wrapper::perform_X_stabilizers(){
-	// now apply CNOTS for X measurements
-	for (int pos = 0; pos < code.X_stabilizer.size(); ++pos){
-		for(auto qubit : code.X_stabilizer.at(pos)){
-			
-			//std::cout << "CNOT control: " << code.num_qubits + pos << " target: " << qubit << std::endl;
-/*
-			autotune_coords_to_real(code.num_qubits + pos,0,0);
-			std::cout << " target: ";
-			autotune_coords_to_real(qubit,0,0);
-			std::cout << std::endl;
-*/			
-			dp_cnot(dp_qc, qubit_array[code.num_qubits + pos], qubit_array[qubit]);
-			//unfortunately autotune requires the same timestep... so we need to add a dead_identity operation to all other qubits
-			for(int i=0; i < code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(); ++i){
-				if(i != qubit && i != pos+code.num_qubits){
-					dp_dead_cnot(dp_qc,qubit_array[i]);
+		for(int pos = 0; pos < code.X_stabilizer.size(); ++pos){
+			for(auto qubit : X_queue.at(pos)){
+				if(qubit_array[qubit]->t == timestep){
+					dp_cnot(dp_qc, qubit_array[code.num_qubits + pos], qubit_array[qubit]);
+					X_queue.at(pos).erase(qubit);
+					finished = false;
+					break;
 				}
 			}
 		}
-	}
+		for(int pos = 0; pos < code.Z_stabilizer.size(); ++pos){
+			for(auto qubit : Z_queue.at(pos)){
+				if(qubit_array[qubit]->t == timestep){
+					dp_cnot(dp_qc, qubit_array[qubit], qubit_array[pos + code.num_qubits + code.X_stabilizer.size()]);
+					Z_queue.at(pos).erase(qubit);
+					finished = false;
+					break;
+				}
+			}
+		}
 
-	// preparation for the measurment of X_stabilizers
-	for(int i = code.num_qubits; i < code.num_qubits + code.X_stabilizer.size(); ++i){
-		
-		//std::cout << "Hadamard on: " << i << std::endl;
-		
-		dp_H(dp_qc,qubit_array[i]);
-	}
-	// apply dead identity to all other qubits
-	for(int i = 0; i < code.num_qubits; ++i){
-		dp_dead_H(dp_qc,qubit_array[i]);
-	}
-	for(int i = code.num_qubits + code.X_stabilizer.size(); i < code.num_qubits + code.X_stabilizer.size() + code.Z_stabilizer.size(); ++i){
-		dp_dead_H(dp_qc,qubit_array[i]);
-	}
+		//bring everything to the same timestep
+		if (finished)
+			break;
+		// Bring all qubits to the same time by applying identities
+		for(int i=0; i < code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(); ++i){
+			if(qubit_array[i]->t <= timestep){
+				dp_iden_cnot(dp_qc,qubit_array[i]);
+			}
+		}
+
+	} // end while
 }
-
-
 
 
 void Wrapper::measure_X_stabilizers(size_type big_t){
@@ -352,11 +272,6 @@ void Wrapper::measure_X_stabilizers(size_type big_t){
 	size_type lay2 = (big_t)%2;
 	// measurement
 	for(int pos = 0; pos < code.X_stabilizer.size(); ++pos){
-		
-		//std::cout << "measure: " << code.num_qubits + pos << std::endl;
-		/*autotune_coords_to_real(code.num_qubits + pos,0,0);
-		std::cout << std::endl;*/
-		
 		dp_meas_Z(dp_qc, qubit_array[pos + code.num_qubits], primal_set[pos][lay1], primal_set[pos][lay2]);
 
 		qc_unassociate_syndrome(primal_syndrome[pos]);
@@ -366,29 +281,9 @@ void Wrapper::measure_X_stabilizers(size_type big_t){
 
 		qc_insert_set(dp_qc->qc, primal_set[pos][lay1]);
 	}
-}
 
-
-
-void Wrapper::perform_Z_stabilizers(){
-	// apply CNOTS for Z measurements
-	for (int pos = 0; pos < code.Z_stabilizer.size(); ++pos){
-		for(auto qubit : code.Z_stabilizer.at(pos)){
-			
-			//std::cout << "CNOT control: " << qubit << " target: " << code.num_qubits +code.X_stabilizer.size()+pos << std::endl;
-			/*autotune_coords_to_real(qubit,0,0);
-			std::cout << " target: ";
-			autotune_coords_to_real(pos + code.num_qubits + code.X_stabilizer.size(),0,0);
-			std::cout << std::endl;*/
-			
-			dp_cnot(dp_qc, qubit_array[qubit], qubit_array[pos + code.num_qubits + code.X_stabilizer.size()]);
-			//unfortunately autotune requires the same timestep... so we need to add a dead_identity operation to all other qubits
-			for(int i=0; i < code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(); ++i){
-				if(i != qubit && i != pos + code.num_qubits + code.X_stabilizer.size()){
-					dp_dead_cnot(dp_qc,qubit_array[i]);
-				}
-			}
-		}
+	for(int i = 0; i < code.num_qubits; ++i){
+		dp_iden_meas_Z(dp_qc,qubit_array[i]);
 	}
 }
 
@@ -399,12 +294,6 @@ void Wrapper::measure_Z_stabilizers(size_type big_t){
 	size_type lay2 = (big_t)%2;
 
 	for(int pos = 0; pos < code.Z_stabilizer.size(); ++pos){
-		
-		//std::cout << "measure: " << code.num_qubits + code.X_stabilizer.size() + pos << std::endl;
-		/*autotune_coords_to_real(code.num_qubits + code.X_stabilizer.size() + pos,0,0);
-		std::cout << std::endl;
-		*/
-
 		dp_meas_Z(dp_qc, qubit_array[code.num_qubits + code.X_stabilizer.size() + pos], dual_set[pos][lay1], dual_set[pos][lay2]);
 		qc_unassociate_syndrome(dual_syndrome[pos]);
 		qc_associate_syndrome(dual_set[pos][lay2], dual_syndrome[pos]);
@@ -413,36 +302,36 @@ void Wrapper::measure_Z_stabilizers(size_type big_t){
 		dual_set[pos][lay1] = qc_create_set_adv(dp_qc->qc, DUAL, code.num_qubits + code.X_stabilizer.size() + pos, 0, 2, infer_boundary(pos,true));
 		qc_insert_set(dp_qc->qc, dual_set[pos][lay1]);
 	}
+
+	// Apply Hadamard for X stabilizers
+	for(int i = code.num_qubits; i < code.num_qubits + code.X_stabilizer.size(); ++i){
+		dp_H(dp_qc,qubit_array[i]);
+	}
+	for(int i = 0; i < code.num_qubits; ++i){
+		dp_iden_H(dp_qc,qubit_array[i]);
+	}
+	// apply dead syndrome due to earlier measuremnt
+	for(int i = code.num_qubits + code.X_stabilizer.size(); i < code.num_qubits + code.X_stabilizer.size() + code.Z_stabilizer.size(); ++i){
+		dp_dead_H(dp_qc,qubit_array[i]);
+	}
+
+
 }
 
 void Wrapper::measure_stabilizers(size_type big_t){
 	// loop through syndromes
 	// unfortunately lattice is frustrated in general, so assume worst case
 	// where all syndrome block each other
-	//std::cout << "\n\n\n############################### new stabilizer measurement" << std::endl;
-	//std::cout << "\n--------- init X stabilizers" << std::endl;
 	init_X_stabilizers();
-	//std::cout << "\n--------- init Z stabilizers" << std::endl;
 	init_Z_stabilizers();
 
-	//std::cout << "\n--------- simulate data errors" << std::endl;
-	data_error_during_init(); // add dead operators for all qubits to be at the same time step
-
-	//std::cout << "\n--------- perform X stabilizers" << std::endl;
-	perform_X_stabilizers();
-	//std::cout << "\n--------- perform Z stabilizers" << std::endl;
-	perform_Z_stabilizers();
+	data_error_during_init();
 	
-	//apply_cnots();
+	apply_cnots();
 
-	//std::cout << "\n--------- measure X stabilizers" << std::endl;
-	measure_X_stabilizers(big_t);
-	//std::cout << "\n--------- measure Z stabilizers" << std::endl;
 	measure_Z_stabilizers(big_t);
-	//one dead idendity for measurements (the errors have been applied in the data_error_during_init() step)
-	for(int i = 0; i < code.num_qubits; ++i){
-		dp_dead_meas_Z(dp_qc,qubit_array[i]);
-	}
+	measure_X_stabilizers(big_t);
+
 	assert(dp_qc->qc->big_t == big_t+1);
 	return;
 }
@@ -997,10 +886,10 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 	
 	//add last element on boundary
 	if(boundary){
-		if(j1 == 0){
+		if(j1 == -1){
 			path.insert(code.GetBoundaryQubitFromStabilizer(code.XBoundaryQubits,code.X_stabilizer.at(*end.begin())));
 		}
-		if(j1 == 1){
+		if(j1 == -2){
 			path.insert(code.GetBoundaryQubitFromStabilizer(code.ZBoundaryQubits,code.Z_stabilizer.at(*end.begin())));
 		}
 	}
@@ -1012,13 +901,7 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 	return;
 }
 
-/**
- * \brief Process augmented edges from a \ref matching
- * 
- * \param[in] m The \ref matching containing the augmented edges
- * \param[in] d The distance of the matching
- * \param[in] frame The Pauli frame to process the edges on
- */
+
 void Wrapper::process_aug_edges(MATCHING *m) {
 	AUG_EDGE *ae;
 	ae = m_get_aug_edge(m);

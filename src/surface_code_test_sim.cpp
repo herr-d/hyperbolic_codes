@@ -23,7 +23,7 @@ void write_usage(char *arg0){
 	std::cout << "\t--seed1      \tThe second random seed\n";
 	std::cout << "\t--help       \tPrints this help message\n";
 
-	std::cout << "\nStandard parameters:\n\t" <<  arg0 << " --distance " << code.r << " --t_check " << code.t_check << " --big_t_max " << code.big_t_max
+	std::cout << "\nStandard parameters:\n\t" <<  arg0 << " --distance " << code.l << " --t_check " << code.t_check << " --big_t_max " << code.big_t_max
 	<< " --probability " << code.probability << " --seed0 " << code.seed0 << " --seed1 " << code.seed1 << "\n" << std::endl;
 }
 
@@ -34,7 +34,7 @@ void process_arguments(int argc, char **argv){
 	code.boot = false;
 	code.r = 3;
 	code.s = 4;
-	code.l = 4;
+	code.l = 3;
 	code.t_check = 1;
 	code.t_delete = 100;
 	code.big_t_max = 20000;
@@ -163,7 +163,7 @@ int main(int argc, char **argv){
 	process_arguments(argc, argv);
 
 	generate_surface_code();
-	printout_code();
+	//printout_code();
 	// initialize error simulation
 	Wrapper simulation(code.probability);
 	simulation.generate_recipe();
