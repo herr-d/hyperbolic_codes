@@ -453,6 +453,9 @@ void Wrapper::init(RECIPE_ADV *rec){
 	last_X_check = 0;
 	last_Z_check = 0;
 	const size_type num_ancillae = code.Z_stabilizer.size() + code.X_stabilizer.size();
+	//not technically necessary but good for debugging
+	for(int i=0; i < code.num_qubits + num_ancillae; ++i)
+		frame[i] = 0;
 	//initialization
 	dp_qc = dp_create_dp_qc_adv(code.seed0, code.seed1, DE_HT_FACTOR*(code.num_qubits+num_ancillae)*(code.num_qubits+num_ancillae),
 		STICK_HT_FACTOR*distance*distance, probab, code.t_delete, rec, code.dir);
@@ -717,6 +720,40 @@ void Wrapper::reset_recipe(){
 
 }
 
+void Wrapper::print_frame(){
+	//prints out all data qubits
+	std::cout << "FRAME:";
+	for(int i = 0; i < code.num_qubits; ++i){
+		std::cout << " " << frame[i];
+	}
+	std::cout << "    X-stab:";
+	for(int i = 0; i < code.X_stabilizer.size(); ++i){
+		std::cout << " " << frame[code.num_qubits + i];
+	}
+	std::cout << "    Z-stab:";
+	for(int i = 0; i < code.Z_stabilizer.size(); ++i){
+		std::cout << " " << frame[code.num_qubits + code.X_stabilizer.size() + i];
+	}
+	std::cout << std::endl;
+}
+
+void Wrapper::print_qubit_array(){
+	//prints out all data qubits
+	std::cout << "Q_ARR:";
+	for(int i = 0; i < code.num_qubits; ++i){
+		std::cout << " " << qubit_array[i]->e;
+	}
+	std::cout << "    X-stab:";
+	for(int i = 0; i < code.X_stabilizer.size(); ++i){
+		std::cout << " " << qubit_array[code.num_qubits + i]->e;
+	}
+	std::cout << "    Z-stab:";
+	for(int i = 0; i < code.Z_stabilizer.size(); ++i){
+		std::cout << " " << qubit_array[code.num_qubits + code.X_stabilizer.size() + i]->e;
+	}
+	std::cout << std::endl;
+}
+
 
 void Wrapper::test_correct() {
 	int count;
@@ -750,6 +787,9 @@ void Wrapper::test_correct() {
 	// If there is a Z error on the qubit, but no Z correction, or the reverse
 	// with a Z correction but no Z error on the qubit, then an error along
 	// the boundary has occured.
+
+	//print_frame();
+	//print_qubit_array();
 
 	// calculate the parity along a path that defines a logical qubit
 	for(auto logical_qubit : code.Z_operator){
@@ -849,10 +889,10 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 		// not on the boundary
 		if (i2 >= code.num_qubits && i2 < code.num_qubits + code.X_stabilizer.size()){
 			end.insert(i2-code.num_qubits);
-			error = X;
+			error = Z;
 		} else if(i2 >= code.num_qubits + code.X_stabilizer.size()){ // dual
 			end.insert(i2 - code.num_qubits - code.X_stabilizer.size());
-			error = Z;
+			error = X;
 		}
 		else{
 			std::cout << "i2: " << i2 <<  std::endl;
@@ -875,12 +915,11 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 		throw(1);
 	}
 
-
 	// perform pathfinding and obtain data qubits with an error
 	ParityCheck path;
-	if(error == X){
+	if(error == Z){ //primal -- detects Z errors
 		DataQubits(code.X_stabilizer, i1, end, path);
-	} else{ //dual syndromes
+	} else{ //dual -- detects X errors
 		DataQubits(code.Z_stabilizer, i1, end, path);
 	}
 	

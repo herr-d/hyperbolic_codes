@@ -168,8 +168,8 @@ int main(int argc, char **argv){
 	Wrapper simulation(code.probability);
 	simulation.generate_recipe();
 
-	if(code.boot)
-		simulation.calculate_t_check();
+	//if(code.boot)
+	//	simulation.calculate_t_check();
 
 	simulation.run_simulation(code.big_t_max);
 	return 0;

@@ -217,6 +217,15 @@ private:
 	void print_stats();
 
 	/*
+	 * Debbuging tool, that outputs the statistics of the current run.
+	 * [in]:
+	 * [out]: pointer to boundary SET, if not on boundary return NULL
+	*/
+	void print_frame();
+	void print_qubit_array();
+
+
+	/*
 	 * Test the attempted correction. If it is incorrect a logical error happens.
 	 * [in]:
 	 * [out]:
