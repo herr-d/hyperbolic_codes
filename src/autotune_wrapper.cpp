@@ -257,9 +257,28 @@ void Wrapper::apply_cnots(){
 		if (finished)
 			break;
 		// Bring all qubits to the same time by applying identities
-		for(int i=0; i < code.num_qubits + code.Z_stabilizer.size() + code.X_stabilizer.size(); ++i){
+		for(int i=0; i < code.num_qubits; ++i){
 			if(qubit_array[i]->t <= timestep){
 				dp_iden_cnot(dp_qc,qubit_array[i]);
+			}
+		}
+		//for stabilizers only the unfinished are suceptible to more errors
+		for(int i=0; i < code.X_stabilizer.size(); ++i){
+			int pos = i + code.num_qubits;
+			if(qubit_array[pos]->t <= timestep){
+				if(X_queue.at(i).size() == 0)
+					dp_dead_cnot(dp_qc,qubit_array[pos]);
+				else
+					dp_iden_cnot(dp_qc,qubit_array[pos]);
+			}
+		}
+		for(int i=0; i < code.Z_stabilizer.size(); ++i){
+			int pos = i + code.num_qubits + code.X_stabilizer.size();
+			if(qubit_array[pos]->t <= timestep){
+				if(Z_queue.at(i).size() == 0)
+					dp_dead_cnot(dp_qc,qubit_array[pos]);
+				else
+					dp_iden_cnot(dp_qc,qubit_array[pos]);
 			}
 		}
 
@@ -353,7 +372,6 @@ Wrapper::Wrapper(){
 	copy = false;
 	distance = 10;
 	num_checks = 0;
-	probab = 0;
 }
 
 Wrapper::Wrapper(const Wrapper & a): Wrapper(){
@@ -414,7 +432,6 @@ Wrapper::Wrapper(const Wrapper & a): Wrapper(){
 
 
 Wrapper::Wrapper(double error_probability) : Wrapper(){
-	probab = error_probability;
 	copy = false;
 
 	//create recipe-- whatever that does
@@ -458,7 +475,7 @@ void Wrapper::init(RECIPE_ADV *rec){
 		frame[i] = 0;
 	//initialization
 	dp_qc = dp_create_dp_qc_adv(code.seed0, code.seed1, DE_HT_FACTOR*(code.num_qubits+num_ancillae)*(code.num_qubits+num_ancillae),
-		STICK_HT_FACTOR*distance*distance, probab, code.t_delete, rec, code.dir);
+		STICK_HT_FACTOR*distance*distance, code.probability, code.t_delete, rec, code.dir);
 	//create qubits
 	for (int i = 0; i < code.num_qubits+num_ancillae; ++i) {
 		qubit_array[i] = qc_create_and_insert_qubit(dp_qc->qc, i, 0, 0, QUBIT_HT_SIZE);
@@ -615,6 +632,7 @@ void Wrapper::run_simulation(size_type big_t_max){
 
 	
 	while (big_t <= big_t_max && (num_X_changes < code.max_num_X || num_Z_changes < code.max_num_Z)) {
+		//std::cout << std::endl;
 		measure_stabilizers(big_t);
 
 		qc_convert_nests(dp_qc->qc, false);
@@ -855,6 +873,9 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 	int j1 = ae->va->j;
 	int	i2 = ae->vb->i;
 	int	j2 = ae->vb->j;
+
+	//std::cout << "i1: " << i1 << " j1: " << j1 << " i2: " << i2 << " j2: " << j2 << std::endl;
+
 	int error = 0;
 	bool boundary = false;
 	ParityCheck end; //list of end positions (only multiple elments when boundary is involved)
@@ -925,18 +946,26 @@ void Wrapper::process_aug_edge(AUG_EDGE *ae) {
 	
 	//add last element on boundary
 	if(boundary){
-		if(j1 == -1){
+		if(j2 == -1){
 			path.insert(code.GetBoundaryQubitFromStabilizer(code.XBoundaryQubits,code.X_stabilizer.at(*end.begin())));
 		}
-		if(j1 == -2){
+		if(j2 == -2){
 			path.insert(code.GetBoundaryQubitFromStabilizer(code.ZBoundaryQubits,code.Z_stabilizer.at(*end.begin())));
 		}
 	}
-
+	/*std::cout << "(aug edge match) error: "<< error << " i1: " << i1 << " i2: " << *end.begin() << std::endl;
+	print_frame();
+	print_qubit_array();
+	std::cout << "errors (" << error << "): ";
+*/
 	// apply an error all elements of the frame along the path
 	for(auto id : path){
+//		std::cout << " " << id;
 		frame[id] ^= error;
 	}
+/*	std::cout << std::endl;
+	print_frame();
+	print_qubit_array();*/
 	return;
 }
 
