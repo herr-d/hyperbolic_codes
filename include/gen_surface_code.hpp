@@ -102,8 +102,8 @@ void generate_surface_code(){
 	ParityCheck X_logical;
 	ParityCheck Z_logical;
 	for(int i = 0; i < code.r; ++i){
-		X_logical.insert(get_data_qubit_id(code.r-1,2*i));
-		Z_logical.insert(get_data_qubit_id(2*i,code.r-1));
+		Z_logical.insert(get_data_qubit_id(code.r-1,2*i));
+		X_logical.insert(get_data_qubit_id(2*i,code.r-1));
 	}
 	code.X_operator.push_back(X_logical);
 	code.Z_operator.push_back(Z_logical);

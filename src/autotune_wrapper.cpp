@@ -808,9 +808,10 @@ void Wrapper::test_correct() {
 	// with a Z correction but no Z error on the qubit, then an error along
 	// the boundary has occured.
 
-	//print_frame();
-	//print_qubit_array();
-
+	/*std::cout << "///////// FRAME AND QUBITS ////////\n////// last_X_check: " << last_X_check.at(0) << " last_Z_check: " << last_Z_check.at(0) << std::endl;
+	second.print_frame();
+	second.print_qubit_array();
+	*/
 	// calculate the parity along a path that defines a logical qubit
 	for(int i = 0; i< code.Z_operator.size(); ++i){
 		count = 0;
@@ -823,8 +824,9 @@ void Wrapper::test_correct() {
 		//check if the parity is the same
 		if (count % 2 != last_Z_check.at(i)){
 			last_Z_check.at(i) = count%2;
-			num_Z_changes.at(i)++;
+			++num_Z_changes.at(i);
 			print_stats();
+			//exit(0);
 		}
 	}
 	for(int i = 0; i< code.X_operator.size(); ++i){
@@ -838,8 +840,9 @@ void Wrapper::test_correct() {
 		//check if the parity is the same
 		if (count % 2 != last_X_check.at(i)){
 			last_X_check.at(i) = count%2;
-			num_X_changes.at(i)++;
+			++num_X_changes.at(i);
 			print_stats();
+			//exit(0);
 		}
 	}
 

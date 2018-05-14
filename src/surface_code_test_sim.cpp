@@ -163,6 +163,7 @@ int main(int argc, char **argv){
 
 	generate_surface_code();
 	//printout_code();
+	//exit(0);
 	// initialize error simulation
 	Wrapper simulation(code.probability);
 	simulation.generate_recipe();
