@@ -38,10 +38,10 @@ private:
 	const int num_padding = 2; //total number of steps that need to be added due to scheduling conflicts: worst case estimate;
 	int distance;
 	int num_checks;
-	int num_X_changes;
-	int num_Z_changes;
-	int last_X_check;
-	int last_Z_check;
+	std::vector<size_type> num_X_changes;
+	std::vector<size_type> num_Z_changes;
+	std::vector<size_type> last_X_check;
+	std::vector<size_type> last_Z_check;
 	double probab;
 
 	///////////////////////////////////////////////////////////////////////////////////////////

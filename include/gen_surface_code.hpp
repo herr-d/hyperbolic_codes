@@ -107,7 +107,6 @@ void generate_surface_code(){
 	}
 	code.X_operator.push_back(X_logical);
 	code.Z_operator.push_back(Z_logical);
-
 }
 
 

@@ -465,10 +465,12 @@ void Wrapper::allocate(){
 }
 
 void Wrapper::init(RECIPE_ADV *rec){
-	num_X_changes = 0;
-	num_Z_changes = 0;
-	last_X_check = 0;
-	last_Z_check = 0;
+	num_X_changes = std::vector<size_type>(code.X_operator.size(),0);
+	num_Z_changes = std::vector<size_type>(code.Z_operator.size(),0);
+
+	last_X_check = std::vector<size_type>(code.X_operator.size(),0);
+	last_Z_check = std::vector<size_type>(code.Z_operator.size(),0);
+
 	const size_type num_ancillae = code.Z_stabilizer.size() + code.X_stabilizer.size();
 	//not technically necessary but good for debugging
 	for(int i=0; i < code.num_qubits + num_ancillae; ++i)
@@ -631,7 +633,7 @@ void Wrapper::run_simulation(size_type big_t_max){
 	dp_qc->qc->boundaries = (void *)boundaries;
 
 	
-	while (big_t <= big_t_max && (num_X_changes < code.max_num_X || num_Z_changes < code.max_num_Z)) {
+	while (big_t <= big_t_max && (num_X_changes.at(0) < code.max_num_X || num_Z_changes.at(0) < code.max_num_Z)) {
 		//std::cout << std::endl;
 		measure_stabilizers(big_t);
 
@@ -704,14 +706,14 @@ void Wrapper::calculate_t_check(){
 
 			// If we have gotten to 50 time checks and have yet to find a change, 
 			// double t_check or we'll be here all year.
-			if (num_X_changes == 0 && num_Z_changes == 0 && num_checks >= 50) {
+			if (num_X_changes.at(0) == 0 && num_Z_changes.at(0) == 0 && num_checks >= 50) {
 				t_check <<= 1;
 				std::cout << "Doubling tcheck: " << t_check << std::endl;
 				num_checks = 0;
 			}
 
-			if (num_X_changes >= boot_num_X || num_Z_changes >= boot_num_Z) {
-				int changes = (num_X_changes >= num_Z_changes) ? num_X_changes : num_Z_changes; 
+			if (num_X_changes.at(0) >= boot_num_X || num_Z_changes.at(0) >= boot_num_Z) {
+				int changes = (num_X_changes.at(0) >= num_Z_changes.at(0)) ? num_X_changes.at(0) : num_Z_changes.at(0); 
 				std::cout << "Calculating tcheck: " << t_check << " "  << num_checks << " " << changes << " " << t_check_scale <<std::endl;
 
 				code.t_check = t_check * num_checks / changes / t_check_scale;
@@ -810,39 +812,36 @@ void Wrapper::test_correct() {
 	//print_qubit_array();
 
 	// calculate the parity along a path that defines a logical qubit
-	for(auto logical_qubit : code.Z_operator){
+	for(int i = 0; i< code.Z_operator.size(); ++i){
 		count = 0;
-		for(auto id : logical_qubit){
+		for(const auto& id : code.Z_operator.at(i)){
 			if ((dp_contains_Z(second.qubit_array[id]->e) && ((second.frame[id]&Z) != Z)) ||
 				(!dp_contains_Z(second.qubit_array[id]->e) && ((second.frame[id]&Z) == Z))) {
 				++count;
 			}
 		}
 		//check if the parity is the same
-		if (count % 2 != last_Z_check){
-			last_Z_check = count%2;
-			num_Z_changes++;
+		if (count % 2 != last_Z_check.at(i)){
+			last_Z_check.at(i) = count%2;
+			num_Z_changes.at(i)++;
 			print_stats();
 		}
 	}
-
-
-	for(auto logical_qubit : code.X_operator){
+	for(int i = 0; i< code.X_operator.size(); ++i){
 		count = 0;
-		for(auto id : logical_qubit){
+		for(const auto& id : code.X_operator.at(i)){
 			if ((dp_contains_X(second.qubit_array[id]->e) && ((second.frame[id]&X) != X)) ||
 				(!dp_contains_X(second.qubit_array[id]->e) && ((second.frame[id]&X) == X))) {
 				++count;
 			}
 		}
 		//check if the parity is the same
-		if (count % 2 != last_X_check){
-			last_X_check = count%2;
-			num_X_changes++;
+		if (count % 2 != last_X_check.at(i)){
+			last_X_check.at(i) = count%2;
+			num_X_changes.at(i)++;
 			print_stats();
 		}
 	}
-
 
 	qc_undo_mwpm(second.dp_qc->qc);
 
@@ -852,9 +851,15 @@ void Wrapper::test_correct() {
 
 
 void Wrapper::print_stats() {
-	std::cout << ">>> " << 0 << " | " << dp_qc->qc->big_t << " | Last: "
-				<< last_X_check << " " << last_Z_check << " | Checks: " << num_checks << " " << num_checks
-				<< " | Changes: " << num_X_changes << " " << num_Z_changes << std::endl;
+	std::cout << ">>> " << 0 << " | " << dp_qc->qc->big_t << " | Last: ";
+	for(int i=0; i < last_X_check.size(); ++i){
+		std::cout <<  last_X_check.at(i) << " " <<last_Z_check.at(i) << " ";
+	}
+	std::cout << "| Checks: " << num_checks << " " << num_checks << " | Changes: ";
+	for(int i=0; i < num_X_changes.size(); ++i){
+		std::cout <<  num_X_changes.at(i) << " " << num_Z_changes.at(i) << " ";
+	}
+	std::cout << std::endl;
 }
 
 
